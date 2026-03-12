@@ -17,7 +17,7 @@ Ship stablecoin apps faster with Circle [Skills](https://agentskills.io): best-p
 ### Claude Code
 ```
 /plugin marketplace add circlefin/skills
-/plugin install circle@circle-skills
+/plugin install circle-skills@circle
 ```
 
 ### Vercel Skills CLI

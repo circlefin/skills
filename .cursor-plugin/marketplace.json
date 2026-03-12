@@ -1,0 +1,18 @@
+{
+  "name": "circle-skills",
+  "owner": {
+    "name": "Circle Technology Services"
+  },
+  "metadata": {
+    "description": "Circle's official skills and MCP integrations for AI agents",
+    "version": "1.0.0",
+    "pluginRoot": "plugins"
+  },
+  "plugins": [
+    {
+      "name": "circle",
+      "source": "./circle",
+      "description": "Ship stablecoin apps faster. Best-practice skills for USDC payments, cross-chain transfers, wallets, and smart contracts — plus Circle's MCP server for real-time SDK and documentation guidance."
+    }
+  ]
+}

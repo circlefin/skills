@@ -1,0 +1,12 @@
+{
+	"name": "circle",
+	"displayName": "Circle",
+	"version": "1.0.0",
+	"description": "Ship stablecoin apps faster. Best-practice skills for USDC payments, cross-chain transfers, wallets, and smart contracts — plus Circle's MCP server for real-time SDK and documentation guidance.",
+	"author": {
+		"name": "Circle Technology Services"
+	},
+	"keywords": ["usdc", "stablecoin", "circle", "cctp", "wallets", "web3", "payments"],
+	"license": "Apache-2.0",
+	"logo": "assets/logo.svg"
+}

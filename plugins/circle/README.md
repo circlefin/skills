@@ -9,6 +9,9 @@ Skills for building Circle onchain applications with USDC payments, crosschain t
 
 ## Skills
 
+### use-usdc
+Interact with USDC on EVM chains and Solana. Use to check balances, send transfers, approve spending, and verify transactions. Supports ERC-20 patterns, SPL token operations, and Associated Token Accounts (ATAs) on Solana.
+
 ### bridge-stablecoin
 Build apps that bridge/transfer USDC between chains using Circle's CCTP (Crosschain Transfer Protocol). Includes UX patterns, progress tracking, destination chain linking, and Bridge Kit SDK implementation patterns for EVM and Solana chains.
 

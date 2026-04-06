@@ -213,10 +213,10 @@ async function signSolanaBurnIntentWithWallet(
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("")}`) as Hex;
   } catch (error) {
-    console.warn(`
-      This wallet does not support signing transactions that aren't strictly Solana t
-      ransactions. Try another wallet such as Solflare.`
-      , error);
+    console.warn(
+      "This wallet does not support signing transactions that aren't strictly Solana transactions. Try another wallet such as Solflare.",
+      error,
+    );
     throw error;
   }
 }

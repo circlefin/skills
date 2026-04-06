@@ -10,7 +10,7 @@ Browser-wallet EVM -> EVM transfer flow:
 import { useState } from "react";
 import { maxUint64, parseUnits, pad, type Hex, zeroAddress } from "viem";
 import {
-  useAccount,
+  useConnection,
   useChainId,
   useSignTypedData,
   useSwitchChain,
@@ -100,7 +100,7 @@ function evmAddressToBytes32(address: Hex): Hex {
  * 4) Call gatewayMint on destination chain
  */
 export default function TransferGatewayBalanceEvmEvm() {
-  const { address: evmAddress } = useAccount();
+  const { address: evmAddress } = useConnection();
   const chainId = useChainId();
   const { mutateAsync: signTypedData } = useSignTypedData();
   const { switchChainAsync } = useSwitchChain();

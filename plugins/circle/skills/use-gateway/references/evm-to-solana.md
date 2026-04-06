@@ -36,7 +36,7 @@ import {
 } from "@solana/web3.js";
 import { useState } from "react";
 import { parseUnits, pad, maxUint64, type Hex } from "viem";
-import { useConnection as useEvmConnection, useSignTypedData } from "wagmi";
+import { useAccount as useEvmAccount, useSignTypedData } from "wagmi";
 
 import {
   type ChainConfig,
@@ -171,7 +171,7 @@ function findTransferSpecHashPda(
 }
 
 export default function TransferGatewayBalanceEvmSol() {
-  const { address: evmAddress } = useEvmConnection();
+  const { address: evmAddress } = useEvmAccount();
   const { mutateAsync } = useSignTypedData();
   const { connection } = useSolConnection();
   const solWallet = useWallet();

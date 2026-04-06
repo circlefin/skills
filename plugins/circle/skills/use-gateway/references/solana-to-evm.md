@@ -15,7 +15,7 @@ import { PublicKey } from "@solana/web3.js";
 import { useState } from "react";
 import { parseUnits, pad, type Hex } from "viem";
 import {
-  useConnection,
+  useAccount,
   useChainId,
   useSwitchChain,
   useWriteContract,
@@ -213,10 +213,10 @@ async function signSolanaBurnIntentWithWallet(
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("")}`) as Hex;
   } catch (error) {
-    console.warn(`
-      This wallet does not support signing transactions that aren't strictly Solana t
-      ransactions. Try another wallet such as Solflare.`
-      , error);
+    console.warn(
+      "This wallet does not support signing transactions that aren't strictly Solana transactions. Try another wallet such as Solflare.",
+      error
+    );
     throw error;
   }
 }
@@ -229,7 +229,7 @@ async function signSolanaBurnIntentWithWallet(
  * 4) Call gatewayMint on destination chain
  */
 export default function TransferGatewayBalanceSolEvm() {
-  const { address: evmAddress } = useConnection();
+  const { address: evmAddress } = useAccount();
   const chainId = useChainId();
   const { mutateAsync: switchChain } = useSwitchChain();
   const { publicKey: solanaPublicKey, signMessage } = useWallet();

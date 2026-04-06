@@ -5,7 +5,8 @@
 import { useState } from "react";
 import { parseUnits, erc20Abi, type Hex } from "viem";
 import {
-  useConnection,
+  useAccount,
+  useChainId,
   useWriteContract,
   useWaitForTransactionReceipt,
   useSwitchChain,
@@ -46,7 +47,8 @@ const NETWORK = "testnet" as "mainnet" | "testnet";
  * trigger the next step in the flow.
  */
 export default function DepositGatewayBalance() {
-  const { address, chainId } = useConnection();
+  const { address } = useAccount();
+  const chainId = useChainId();
   const { mutate: switchChain } = useSwitchChain();
 
   // Track the current step in the deposit flow

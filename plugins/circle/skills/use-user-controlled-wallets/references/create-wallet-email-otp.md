@@ -29,84 +29,53 @@ Complete flow for creating user-controlled wallets using email one-time passcode
 
 Circle supports any SMTP-compatible email provider. For testing, Mailtrap is recommended. For production, use SendGrid, Mailgun, or AWS SES.
 
-## Backend Component
+## Backend SDK Methods
 
-Uses `@circle-fin/user-controlled-wallets` SDK for all server-side operations. The backend needs a server exposing the endpoints listed below each function.
+### Step 1: Request email OTP
 
-```typescript
-import {
-  Blockchain,
-  initiateUserControlledWalletsClient,
-} from "@circle-fin/user-controlled-wallets";
+Circle sends a one-time code to the user's email address.
 
-const circleClient = initiateUserControlledWalletsClient({
-  apiKey: process.env.CIRCLE_API_KEY!,
+```ts
+const response = await circleClient.createDeviceTokenForEmailLogin({
+  deviceId,
+  email,
 });
+// response.data: { deviceToken, deviceEncryptionKey, otpToken }
+```
 
-/**
- * Requests an email OTP for authentication.
- * Circle sends a one-time code to the user's email address.
- * Endpoint: POST /api/wallet/request-otp { deviceId, email }
- */
-export async function requestEmailOtp(deviceId: string, email: string) {
-  const response = await circleClient.createDeviceTokenForEmailLogin({
-    deviceId,
-    email,
-  });
+### Step 2: Initialize user and create wallet
 
-  return {
-    deviceToken: response.data?.deviceToken,
-    deviceEncryptionKey: response.data?.deviceEncryptionKey,
-    otpToken: response.data?.otpToken,
-  };
-}
+Returns a `challengeId` if the user needs to create a wallet. Error code 155106 means user already exists -- fetch wallets instead.
 
-/**
- * Initializes a user after successful OTP verification.
- * Returns a challengeId if the user needs to create a wallet.
- * Error code 155106 means user already exists - fetch wallets instead.
- * Endpoint: POST /api/wallet/initialize { userToken, blockchains? }
- */
-export async function initializeUser(
-  userToken: string,
-  blockchains: Blockchain[] = [Blockchain.ArcTestnet]
-) {
-  const response = await circleClient.createUserPinWithWallets({
-    userToken,
-    blockchains,
-    accountType: "SCA",
-  });
+```ts
+const response = await circleClient.createUserPinWithWallets({
+  userToken,
+  blockchains: [Blockchain.ArcTestnet],
+  accountType: "SCA",
+});
+// response.data: { challengeId }
+```
 
-  return {
-    challengeId: response.data?.challengeId,
-  };
-}
+### List wallets
 
-/**
- * Lists all wallets for a user.
- * Endpoint: POST /api/wallet/list { userToken }
- */
-export async function listUserWallets(userToken: string) {
-  const response = await circleClient.listWallets({ userToken });
-  return response.data?.wallets ?? [];
-}
+```ts
+const response = await circleClient.listWallets({ userToken });
+// response.data: { wallets }
+```
 
-/**
- * Gets token balances for a specific wallet.
- * Endpoint: POST /api/wallet/balances { walletId, userToken }
- */
-export async function getWalletBalances(walletId: string, userToken: string) {
-  const response = await circleClient.getWalletTokenBalance({
-    walletId,
-    userToken,
-  });
-  return response.data?.tokenBalances ?? [];
-}
+### Get token balances
+
+```ts
+const response = await circleClient.getWalletTokenBalance({
+  walletId,
+  userToken,
+});
+// response.data: { tokenBalances }
 ```
 
 ## Frontend Component
 
-Uses `@circle-fin/w3s-pw-web-sdk` for OTP verification and challenge execution. The SDK must be initialized with a login callback to handle OTP verification results.
+The SDK must be initialized with a login callback to handle OTP verification results.
 
 The frontend implements four button handlers mapping to the User Flow steps:
 1. `handleRequestOtp` -- Send OTP to email
@@ -275,3 +244,9 @@ export default function EmailOtpWallet({
 | 155133 | OTP value invalid | User should re-enter code |
 | 155134 | OTP value not matched | User should re-enter code |
 | 155146 | OTP invalid after 3 attempts | Request new OTP (locked out) |
+
+## Reference Links
+
+- [Create User Wallets with Email OTP](https://developers.circle.com/wallets/user-controlled/create-user-wallets-with-email)
+- [Create Device Token Email Login API](https://developers.circle.com/api-reference/wallets/user-controlled-wallets/create-device-token-email-login)
+- [Resend OTP API](https://developers.circle.com/api-reference/wallets/user-controlled-wallets/resend-otp)

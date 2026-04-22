@@ -1,19 +1,42 @@
-# Depositing USDC on EVM (Creating Unified Balance)
+# Deposit USDC on EVM into Gateway
 
-## Create Unified Balance
-```tsx
-import { useState } from "react";
-import { parseUnits, erc20Abi, type Hex } from "viem";
+This example uses Arc Testnet, but the same deposit pattern applies to any supported EVM chain after substituting the correct chain config, Gateway Wallet address, and USDC address.
+
+Canonical runnable references:
+- Create unified USDC balance: https://developers.circle.com/gateway/howtos/create-unified-usdc-balance.md
+- Unified balance EVM quickstart: https://developers.circle.com/gateway/quickstarts/unified-balance-evm.md
+- Arc crosschain USDC tutorial: https://docs.arc.network/arc/tutorials/access-usdc-crosschain.md
+
+## What this does
+
+This script:
+
+1. Approves the Gateway Wallet contract to spend USDC
+2. Calls `deposit(address,uint256)` on the Gateway Wallet contract
+3. Waits for both transactions to confirm
+
+## Critical warning
+
+Do **not** send USDC directly to the Gateway Wallet contract with a normal ERC-20 transfer. The funds will not be credited to the unified balance. You must call the Gateway `deposit()` method.
+
+## Runnable example
+
+```ts
 import {
-  useConnection,
-  useWriteContract,
-  useWaitForTransactionReceipt,
-  useSwitchChain,
-} from "wagmi";
+  createPublicClient,
+  createWalletClient,
+  erc20Abi,
+  formatUnits,
+  getContract,
+  http,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { arcTestnet } from "viem/chains";
 
-import { arcContracts } from "./contract-addresses.js";
+const GATEWAY_WALLET_ADDRESS = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
+const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+const DEPOSIT_AMOUNT = 5_000_000n; // 5 USDC (6 decimals)
 
-// Gateway Wallet ABI - only the deposit function we need
 const gatewayWalletAbi = [
   {
     type: "function",
@@ -27,123 +50,63 @@ const gatewayWalletAbi = [
   },
 ] as const;
 
-// Deposit flow states
-type DepositStep = "idle" | "approving" | "depositing" | "success";
-
-// Keep gas caps explicit to avoid wallet/provider overestimating and hitting max tx gas limit.
-const APPROVE_GAS_LIMIT = 120_000n;
-const DEPOSIT_GAS_LIMIT = 350_000n;
-const NETWORK = "testnet" as "mainnet" | "testnet";
-
-/**
- * React component demonstrating Gateway USDC deposit flow using wagmi hooks.
- *
- * The deposit process involves two sequential blockchain transactions:
- * 1. Approve: Grant the Gateway Wallet contract permission to spend USDC
- * 2. Deposit: Transfer USDC from user's wallet to the Gateway Wallet
- *
- * This component uses wagmi's declarative pattern where state changes
- * trigger the next step in the flow.
- */
-export default function DepositGatewayBalance() {
-  const { address, chainId } = useConnection();
-  const { mutate: switchChain } = useSwitchChain();
-
-  // Track the current step in the deposit flow
-  const [step, setStep] = useState<DepositStep>("idle");
-
-  // Store the amount to deposit (in human-readable format, e.g., "10.5")
-  const [amount, setAmount] = useState("");
-
-  // Choose the network at runtime to avoid hardcoding testnet/mainnet in snippet logic.
-  const chainConfig = arcContracts[NETWORK];
-  if (!chainConfig) {
-    return <div />;
-  }
-
-  const gatewayWalletAddress = chainConfig.GatewayWallet as Hex;
-  const usdcAddress = chainConfig.USDCAddress as Hex;
-
-  // Set up wagmi hooks for contract writes
-  // We need two separate hooks because we make two sequential transactions
-  const { mutate: approve, data: approveHash } = useWriteContract();
-  const { mutate: deposit, data: depositHash } = useWriteContract();
-
-  // Track transaction confirmations
-  const { isLoading: isApproving, isSuccess: approveSuccess } = useWaitForTransactionReceipt({
-    hash: approveHash,
-  });
-  const { isLoading: isDepositing, isSuccess: depositSuccess } = useWaitForTransactionReceipt({
-    hash: depositHash,
-  });
-
-  // Check if user needs to switch to the correct chain
-  const needsChainSwitch = chainId !== chainConfig.ViemChain.id;
-
-  /**
-   * Initiates the deposit flow by first requesting USDC approval.
-   *
-   * @param depositAmountUsdc - Amount to deposit in human-readable format (e.g., "10.5")
-   */
-  const handleDeposit = async (depositAmountUsdc: string) => {
-    if (!address || !depositAmountUsdc) return;
-
-    try {
-      // Convert human-readable amount to base units (USDC has 6 decimals)
-      const depositAmountBaseUnits = parseUnits(depositAmountUsdc, 6);
-      setAmount(depositAmountUsdc);
-
-      // Step 1: Approve the Gateway Wallet to spend our USDC
-      // This is required before we can deposit - standard ERC-20 pattern
-      setStep("approving");
-      approve({
-        address: usdcAddress,
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [gatewayWalletAddress, depositAmountBaseUnits],
-        gas: APPROVE_GAS_LIMIT,
-      });
-    } catch (error) {
-      setStep("idle");
-    }
-  };
-
-  /**
-   * Switch to the required chain for deposits.
-   * Must be on the correct chain to interact with the Gateway contracts.
-   */
-  const handleSwitchChain = () => {
-    switchChain({ chainId: chainConfig.ViemChain.id });
-  };
-
-  // Reactive flow: When approval completes, automatically trigger the deposit
-  // This is wagmi's declarative pattern - we react to state changes rather than using await
-  if (step === "approving" && approveSuccess && !isApproving && approveHash) {
-    setStep("depositing");
-    const depositAmountBaseUnits = parseUnits(amount, 6);
-
-    // Step 2: Call the Gateway Wallet's deposit function
-    // This transfers USDC from the user's wallet to the Gateway
-    deposit({
-      address: gatewayWalletAddress,
-      abi: gatewayWalletAbi,
-      functionName: "deposit",
-      args: [usdcAddress, depositAmountBaseUnits],
-      gas: DEPOSIT_GAS_LIMIT,
-    });
-  }
-
-  // When deposit completes, update to success state
-  if (step === "depositing" && depositSuccess && !isDepositing && depositHash) {
-    setStep("success");
-    // Reset after a delay
-    setTimeout(() => {
-      setStep("idle");
-      setAmount("");
-    }, 3000);
-  }
-
-  // Placeholder UI - business logic is in hooks and handlers above.
-  return <div />;
+if (!process.env.EVM_PRIVATE_KEY) {
+  throw new Error("EVM_PRIVATE_KEY not set");
 }
+
+const account = privateKeyToAccount(
+  process.env.EVM_PRIVATE_KEY as `0x${string}`,
+);
+
+const publicClient = createPublicClient({
+  chain: arcTestnet,
+  transport: http(),
+});
+
+const walletClient = createWalletClient({
+  account,
+  chain: arcTestnet,
+  transport: http(),
+});
+
+const usdc = getContract({
+  address: USDC_ADDRESS,
+  abi: erc20Abi,
+  client: walletClient,
+});
+
+const gatewayWallet = getContract({
+  address: GATEWAY_WALLET_ADDRESS,
+  abi: gatewayWalletAbi,
+  client: walletClient,
+});
+
+async function main() {
+  console.log(`Approving ${formatUnits(DEPOSIT_AMOUNT, 6)} USDC...`);
+
+  const approvalTx = await usdc.write.approve(
+    [gatewayWallet.address, DEPOSIT_AMOUNT],
+    { account },
+  );
+  await publicClient.waitForTransactionReceipt({ hash: approvalTx });
+  console.log(`Approved: ${approvalTx}`);
+
+  console.log(
+    `Depositing ${formatUnits(DEPOSIT_AMOUNT, 6)} USDC to Gateway Wallet...`,
+  );
+
+  const depositTx = await gatewayWallet.write.deposit(
+    [usdc.address, DEPOSIT_AMOUNT],
+    { account },
+  );
+  await publicClient.waitForTransactionReceipt({ hash: depositTx });
+  console.log(`Deposit tx: ${depositTx}`);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
 ```
+
+

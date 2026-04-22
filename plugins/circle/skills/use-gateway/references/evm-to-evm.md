@@ -1,31 +1,68 @@
-# Gateway EVM-to-EVM Transfers
+# Transfer Unified USDC from EVM to EVM
 
-Browser-wallet EVM -> EVM transfer flow:
-1. Sign EIP-712 burn intent with source EVM wallet
-2. Submit to Gateway API
-3. Switch to destination EVM chain
-4. Call gatewayMint on destination chain
+This example burns from Arc Testnet and Avalanche Fuji, then mints on Sei Testnet. The same pattern applies to any supported EVM source and destination chains after substituting the correct chain config, contract addresses, and domain IDs.
 
-```tsx
-import { useState } from "react";
-import { maxUint64, parseUnits, pad, type Hex, zeroAddress } from "viem";
+Canonical runnable references:
+- Transfer unified USDC balance: https://developers.circle.com/gateway/howtos/transfer-unified-usdc-balance.md
+- Unified balance EVM quickstart: https://developers.circle.com/gateway/quickstarts/unified-balance-evm.md
+- Arc crosschain USDC tutorial: https://docs.arc.network/arc/tutorials/access-usdc-crosschain.md
+
+## What this does
+
+This script:
+
+1. Builds a Gateway burn intent for each selected source chain
+2. Signs each burn intent as EIP-712 typed data
+3. Submits the signed intents to the Gateway `/transfer` API
+4. Calls `gatewayMint(bytes,bytes)` on the destination EVM chain
+5. Waits for the mint transaction receipt
+
+## Runnable example
+
+```ts
+import { randomBytes } from "node:crypto";
 import {
-  useAccount,
-  useChainId,
-  useSignTypedData,
-  useSwitchChain,
-  useWriteContract,
-  useWaitForTransactionReceipt,
-} from "wagmi";
+  createPublicClient,
+  createWalletClient,
+  formatUnits,
+  getContract,
+  http,
+  maxUint256,
+  pad,
+  zeroAddress,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { avalancheFuji, arcTestnet, seiTestnet } from "viem/chains";
 
-import {
-  type ChainConfig,
-  GATEWAY_CONFIG,
-  arcContracts,
-  baseContracts,
-} from "./contract-addresses.js";
+const GATEWAY_WALLET_ADDRESS = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
+const GATEWAY_MINTER_ADDRESS = "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B";
+const GATEWAY_API_URL = "https://gateway-api-testnet.circle.com/v1/transfer";
 
-// Gateway Minter ABI - only the gatewayMint function we need
+const TRANSFER_VALUE = 5_000_000n; // 5 USDC (6 decimals)
+const MAX_FEE = 2_010000n;
+
+const sourceChains = [
+  {
+    name: "Arc Testnet",
+    chain: arcTestnet,
+    usdcAddress: "0x3600000000000000000000000000000000000000",
+    domainId: 26,
+  },
+  {
+    name: "Avalanche Fuji",
+    chain: avalancheFuji,
+    usdcAddress: "0x5425890298aed601595a70AB815c96711a31Bc65",
+    domainId: 1,
+  },
+];
+
+const destinationChain = {
+  name: "Sei Testnet",
+  chain: seiTestnet,
+  usdcAddress: "0x4fCF1784B31630811181f670Aea7A7bEF803eaED",
+  domainId: 16,
+};
+
 const gatewayMinterAbi = [
   {
     type: "function",
@@ -39,171 +76,138 @@ const gatewayMinterAbi = [
   },
 ] as const;
 
-const EIP712_DOMAIN = {
-  name: "GatewayWallet",
-  version: "1",
-} as const;
+const typedData = {
+  domain: { name: "GatewayWallet", version: "1" },
+  types: {
+    EIP712Domain: [
+      { name: "name", type: "string" },
+      { name: "version", type: "string" },
+    ],
+    TransferSpec: [
+      { name: "version", type: "uint32" },
+      { name: "sourceDomain", type: "uint32" },
+      { name: "destinationDomain", type: "uint32" },
+      { name: "sourceContract", type: "bytes32" },
+      { name: "destinationContract", type: "bytes32" },
+      { name: "sourceToken", type: "bytes32" },
+      { name: "destinationToken", type: "bytes32" },
+      { name: "sourceDepositor", type: "bytes32" },
+      { name: "destinationRecipient", type: "bytes32" },
+      { name: "sourceSigner", type: "bytes32" },
+      { name: "destinationCaller", type: "bytes32" },
+      { name: "value", type: "uint256" },
+      { name: "salt", type: "bytes32" },
+      { name: "hookData", type: "bytes" },
+    ],
+    BurnIntent: [
+      { name: "maxBlockHeight", type: "uint256" },
+      { name: "maxFee", type: "uint256" },
+      { name: "spec", type: "TransferSpec" },
+    ],
+  },
+  primaryType: "BurnIntent" as const,
+};
 
-const EIP712_TYPES = {
-  TransferSpec: [
-    { name: "version", type: "uint32" },
-    { name: "sourceDomain", type: "uint32" },
-    { name: "destinationDomain", type: "uint32" },
-    { name: "sourceContract", type: "bytes32" },
-    { name: "destinationContract", type: "bytes32" },
-    { name: "sourceToken", type: "bytes32" },
-    { name: "destinationToken", type: "bytes32" },
-    { name: "sourceDepositor", type: "bytes32" },
-    { name: "destinationRecipient", type: "bytes32" },
-    { name: "sourceSigner", type: "bytes32" },
-    { name: "destinationCaller", type: "bytes32" },
-    { name: "value", type: "uint256" },
-    { name: "salt", type: "bytes32" },
-    { name: "hookData", type: "bytes" },
-  ],
-  BurnIntent: [
-    { name: "maxBlockHeight", type: "uint256" },
-    { name: "maxFee", type: "uint256" },
-    { name: "spec", type: "TransferSpec" },
-  ],
-} as const;
-
-const MAX_FEE = 2_010000n;
-
-type TransferStep = "idle" | "signing" | "attesting" | "switching" | "minting" | "success";
-type NetworkType = "mainnet" | "testnet";
-
-interface EvmBurnIntentInput {
-  sourceChainConfig: ChainConfig;
-  destinationChainConfig: ChainConfig;
-  transferAmountUsdc: string;
-  recipientAddress?: Hex;
+if (!process.env.EVM_PRIVATE_KEY) {
+  throw new Error("EVM_PRIVATE_KEY not set");
 }
 
-function randomHex32(): Hex {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return (`0x${Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")}`) as Hex;
+const account = privateKeyToAccount(
+  process.env.EVM_PRIVATE_KEY as `0x${string}`,
+);
+
+function toBytes32(address: `0x${string}`) {
+  return pad(address.toLowerCase(), { size: 32 });
 }
 
-function evmAddressToBytes32(address: Hex): Hex {
-  return pad(address.toLowerCase() as Hex, { size: 32 });
-}
+async function main() {
+  console.log(`Using account: ${account.address}`);
+  console.log(`Burning from: ${sourceChains.map((chain) => chain.name).join(", ")}`);
+  console.log(`Minting on: ${destinationChain.name}`);
 
-/**
- * Browser-wallet EVM -> EVM transfer:
- * 1) Sign EIP-712 burn intent with source EVM wallet
- * 2) Submit to Gateway API
- * 3) Switch to destination EVM chain
- * 4) Call gatewayMint on destination chain
- */
-export default function TransferGatewayBalanceEvmEvm() {
-  const { address: evmAddress } = useAccount();
-  const chainId = useChainId();
-  const { mutateAsync: signTypedData } = useSignTypedData();
-  const { switchChainAsync } = useSwitchChain();
+  const requests = [];
 
-  const [step, setStep] = useState<TransferStep>("idle");
-  const [error, setError] = useState<string | null>(null);
+  for (const sourceChain of sourceChains) {
+    const burnIntent = {
+      maxBlockHeight: maxUint256,
+      maxFee: MAX_FEE,
+      spec: {
+        version: 1,
+        sourceDomain: sourceChain.domainId,
+        destinationDomain: destinationChain.domainId,
+        sourceContract: toBytes32(GATEWAY_WALLET_ADDRESS),
+        destinationContract: toBytes32(GATEWAY_MINTER_ADDRESS),
+        sourceToken: toBytes32(sourceChain.usdcAddress as `0x${string}`),
+        destinationToken: toBytes32(
+          destinationChain.usdcAddress as `0x${string}`,
+        ),
+        sourceDepositor: toBytes32(account.address),
+        destinationRecipient: toBytes32(account.address),
+        sourceSigner: toBytes32(account.address),
+        destinationCaller: toBytes32(zeroAddress),
+        value: TRANSFER_VALUE,
+        salt: `0x${randomBytes(32).toString("hex")}`,
+        hookData: "0x",
+      },
+    };
 
-  const { mutate: mint, data: mintHash } = useWriteContract();
-  const { isLoading: isMinting, isSuccess: mintSuccess } = useWaitForTransactionReceipt({
-    hash: mintHash,
-  });
+    const signature = await account.signTypedData({
+      ...typedData,
+      message: burnIntent,
+    });
 
-  const handleTransfer = async (input: EvmBurnIntentInput, network: NetworkType = "testnet") => {
-    if (!evmAddress) return;
-    const sourceChain = input.sourceChainConfig[network];
-    const destChain = input.destinationChainConfig[network];
-    if (!sourceChain || !destChain) return;
-
-    try {
-      setError(null);
-      setStep("signing");
-
-      const recipient = (input.recipientAddress ?? evmAddress) as Hex;
-      const transferAmount = parseUnits(input.transferAmountUsdc, 6);
-
-      const burnIntent = {
-        maxBlockHeight: maxUint64.toString(),
-        maxFee: MAX_FEE.toString(),
-        spec: {
-          version: 1,
-          sourceDomain: input.sourceChainConfig.domain,
-          destinationDomain: input.destinationChainConfig.domain,
-          sourceContract: evmAddressToBytes32(sourceChain.GatewayWallet as Hex),
-          destinationContract: evmAddressToBytes32(destChain.GatewayMinter as Hex),
-          sourceToken: evmAddressToBytes32(sourceChain.USDCAddress as Hex),
-          destinationToken: evmAddressToBytes32(destChain.USDCAddress as Hex),
-          sourceDepositor: evmAddressToBytes32(evmAddress),
-          destinationRecipient: evmAddressToBytes32(recipient),
-          sourceSigner: evmAddressToBytes32(evmAddress),
-          destinationCaller: evmAddressToBytes32(zeroAddress),
-          value: transferAmount.toString(),
-          salt: randomHex32(),
-          hookData: "0x" as Hex,
-        },
-      };
-
-      const burnSignature = await signTypedData({
-        domain: EIP712_DOMAIN,
-        primaryType: "BurnIntent",
-        types: EIP712_TYPES,
-        message: burnIntent,
-      });
-
-      const gatewayUrl =
-        network === "mainnet" ? GATEWAY_CONFIG.MAINNET_URL : GATEWAY_CONFIG.TESTNET_URL;
-      setStep("attesting");
-      const response = await fetch(`${gatewayUrl}/transfer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify([{ burnIntent, signature: burnSignature }]),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Gateway API request failed: ${response.status} ${errorText}`);
-      }
-
-      const { attestation, signature: apiSignature } = await response.json();
-
-      if (chainId !== destChain.ViemChain.id) {
-        setStep("switching");
-        await switchChainAsync({ chainId: destChain.ViemChain.id });
-      }
-
-      setStep("minting");
-      mint({
-        address: destChain.GatewayMinter as Hex,
-        abi: gatewayMinterAbi,
-        functionName: "gatewayMint",
-        args: [attestation as Hex, apiSignature as Hex],
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Transfer failed");
-      setStep("idle");
-    }
-  };
-
-  if (step === "minting" && mintSuccess && !isMinting && mintHash) {
-    setStep("success");
-    setTimeout(() => {
-      setStep("idle");
-    }, 3000);
+    requests.push({ burnIntent, signature });
   }
 
-  // Example input kept as a reusable config block instead of hardcoded inline UI.
-  const defaultTransferInput: EvmBurnIntentInput = {
-    sourceChainConfig: arcContracts,
-    destinationChainConfig: baseContracts,
-    transferAmountUsdc: "1",
-    recipientAddress: evmAddress as Hex,
+  const apiResponse = await fetch(GATEWAY_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requests, (_key, value) =>
+      typeof value === "bigint" ? value.toString() : value,
+    ),
+  });
+
+  if (!apiResponse.ok) {
+    throw new Error(
+      `Gateway API request failed: ${apiResponse.status} ${await apiResponse.text()}`,
+    );
+  }
+
+  const { attestation, signature } = (await apiResponse.json()) as {
+    attestation: `0x${string}`;
+    signature: `0x${string}`;
   };
 
-  // Placeholder UI - business logic is in hooks and handlers above.
-  return <div />;
+  const publicClient = createPublicClient({
+    chain: destinationChain.chain,
+    transport: http(),
+  });
+
+  const walletClient = createWalletClient({
+    account,
+    chain: destinationChain.chain,
+    transport: http(),
+  });
+
+  const gatewayMinter = getContract({
+    address: GATEWAY_MINTER_ADDRESS,
+    abi: gatewayMinterAbi,
+    client: walletClient,
+  });
+
+  const mintTx = await gatewayMinter.write.gatewayMint([attestation, signature], {
+    account,
+  });
+  await publicClient.waitForTransactionReceipt({ hash: mintTx });
+
+  const totalMinted = BigInt(sourceChains.length) * TRANSFER_VALUE;
+  console.log(`Minted ${formatUnits(totalMinted, 6)} USDC`);
+  console.log(`Mint transaction hash: ${mintTx}`);
 }
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
 ```
+

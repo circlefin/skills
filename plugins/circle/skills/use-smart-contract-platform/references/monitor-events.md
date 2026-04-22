@@ -1,18 +1,12 @@
 # Monitor Smart Contract Events
 
-## Overview
+Use these TypeScript snippets to receive webhook notifications when a contract emits specific events, and to fetch historical event logs.
 
-Use this flow to receive webhook notifications when a contract emits specific events, and to fetch historical event logs.
-
-## Prerequisites
-
-- A public HTTPS webhook endpoint that accepts POST
-- Contract address + blockchain
-- Contract imported into Circle before monitor creation
-
-## 1) Import contract (required before creating monitor)
+## Import contract (required before creating monitor)
 
 ```ts
+import crypto from 'node:crypto';
+
 const importRes = await scpClient.importContract({
   address: "0xYourContractAddress",
   blockchain: "ARC-TESTNET",
@@ -24,12 +18,7 @@ const importRes = await scpClient.importContract({
 console.log(importRes.data?.contract);
 ```
 
-If you skip import, monitor creation can fail with `contract not found`.
-
-## 2) Create event monitor
-
-Use human-readable event signature with no spaces, for example:
-`Transfer(address,address,uint256)`.
+## Create event monitor
 
 ```ts
 const monitorRes = await scpClient.createEventMonitor({
@@ -42,7 +31,7 @@ const monitorRes = await scpClient.createEventMonitor({
 console.log(monitorRes.data?.eventMonitor);
 ```
 
-## 3) Fetch event history
+## Fetch event history
 
 ```ts
 const historyRes = await scpClient.getEventHistory({
@@ -73,3 +62,7 @@ console.log(historyRes.data?.eventLogs ?? []);
 ```
 
 Use `notification.topics` and `notification.data` to decode indexed/non-indexed fields.
+
+## Reference Links
+
+- [Event Monitoring for Smart Contracts Guide](https://developers.circle.com/contracts/scp-event-monitoring.md)

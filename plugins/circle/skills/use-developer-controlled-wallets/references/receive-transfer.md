@@ -27,3 +27,8 @@ const inboundTransactions =
 ```
 
 Lists transactions for the wallet so you can confirm inbound transfers and state progression.
+
+## Reference Links
+
+- [Receive an Inbound Transfer](https://developers.circle.com/wallets/dev-controlled/receive-an-inbound-transfer)
+- [List Transactions API](https://developers.circle.com/api-reference/wallets/developer-controlled-wallets/list-transactions)

@@ -26,92 +26,57 @@ Complete flow for creating user-controlled wallets using PIN authentication. PIN
    - Must be at least 5 characters
    - Should be unique per user (email, username, UUID, etc.)
 
-## Backend Component
+## Backend SDK Methods
 
-Uses `@circle-fin/user-controlled-wallets` SDK for all server-side operations. The backend needs a server exposing the endpoints listed below each function.
+### Step 1: Create a user
 
-```typescript
-import {
-  Blockchain,
-  initiateUserControlledWalletsClient,
-} from "@circle-fin/user-controlled-wallets";
+```ts
+const response = await circleClient.createUser({ userId });
+// response.data: { id, status, pinStatus }
+```
 
-const circleClient = initiateUserControlledWalletsClient({
-  apiKey: process.env.CIRCLE_API_KEY!,
+### Step 2: Get a session token
+
+Returns `userToken` (valid for 60 minutes) and `encryptionKey`.
+
+```ts
+const response = await circleClient.createUserToken({ userId });
+// response.data: { userToken, encryptionKey }
+```
+
+### Step 3: Initialize user with PIN and create wallet
+
+Returns a `challengeId` for the Web SDK to execute. Error code 155106 means user already has wallets -- fetch them instead.
+
+```ts
+const response = await circleClient.createUserPinWithWallets({
+  userToken,
+  blockchains: [Blockchain.ArcTestnet],
+  accountType: "SCA",
 });
+// response.data: { challengeId }
+```
 
-/**
- * Creates a new user in Circle's system.
- * Endpoint: POST /api/wallet/create-user { userId }
- */
-export async function createUser(userId: string) {
-  const response = await circleClient.createUser({ userId });
-  return {
-    id: response.data?.id,
-    status: response.data?.status,
-    pinStatus: response.data?.pinStatus,
-  };
-}
+### List wallets
 
-/**
- * Gets a session token for a user.
- * Returns userToken (valid for 60 minutes) and encryptionKey.
- * Endpoint: POST /api/wallet/get-token { userId }
- */
-export async function getUserToken(userId: string) {
-  const response = await circleClient.createUserToken({ userId });
-  return {
-    userToken: response.data?.userToken,
-    encryptionKey: response.data?.encryptionKey,
-  };
-}
+```ts
+const response = await circleClient.listWallets({ userToken });
+// response.data: { wallets }
+```
 
-/**
- * Initializes a user with PIN setup and wallet creation.
- * Returns a challengeId for the Web SDK to execute.
- * Error code 155106 means user already has wallets - fetch them instead.
- * Endpoint: POST /api/wallet/initialize { userToken, blockchains?, accountType? }
- */
-export async function initializeUser(
-  userToken: string,
-  blockchains: Blockchain[] = [Blockchain.ArcTestnet],
-  accountType: "EOA" | "SCA" = "SCA"
-) {
-  const response = await circleClient.createUserPinWithWallets({
-    userToken,
-    blockchains,
-    accountType,
-  });
-  return { challengeId: response.data?.challengeId };
-}
+### Get token balances
 
-/**
- * Lists all wallets for a user.
- * Endpoint: POST /api/wallet/list { userToken }
- */
-export async function listUserWallets(userToken: string) {
-  const response = await circleClient.listWallets({ userToken });
-  return response.data?.wallets ?? [];
-}
-
-/**
- * Gets token balances for a specific wallet.
- * Endpoint: POST /api/wallet/balances { walletId, userToken }
- */
-export async function getWalletBalances(walletId: string, userToken: string) {
-  const response = await circleClient.getWalletTokenBalance({
-    walletId,
-    userToken,
-  });
-  return response.data?.tokenBalances ?? [];
-}
+```ts
+const response = await circleClient.getWalletTokenBalance({
+  walletId,
+  userToken,
+});
+// response.data: { tokenBalances }
 ```
 
 ## Frontend Component
 
-Uses `@circle-fin/w3s-pw-web-sdk` for PIN setup and challenge execution. Unlike email/social auth, PIN does not require a login callback -- the SDK is initialized without one.
-
-IMPORTANT: You must call `sdk.getDeviceId()` after SDK initialization. This establishes a session with Circle's service via an iframe. Without this call, `sdk.execute()` will silently fail.
+Unlike email/social auth, PIN does not require a login callback -- the SDK is initialized without one.
 
 The frontend implements four button handlers mapping to the User Flow steps:
 1. `handleCreateUser` -- Create user in Circle's system
@@ -260,3 +225,10 @@ export default function PinWallet({
 | 155106 | User already initialized | Fetch existing wallets instead of creating |
 | 155104 | Invalid user token | Token expired -- call `createUserToken` again |
 | 155101 | User not found | User needs to be created first |
+
+## Reference Links
+
+- [Create User Wallets with PIN](https://developers.circle.com/wallets/user-controlled/create-user-wallets-with-pin)
+- [Create User API](https://developers.circle.com/api-reference/wallets/user-controlled-wallets/create-user)
+- [Get User Token API](https://developers.circle.com/api-reference/wallets/user-controlled-wallets/get-user-token)
+- [Create User with PIN Challenge API](https://developers.circle.com/api-reference/wallets/user-controlled-wallets/create-user-with-pin-challenge)

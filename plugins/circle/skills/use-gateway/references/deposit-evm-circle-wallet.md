@@ -1,85 +1,62 @@
-# Depositing USDC on EVM from a Circle Developer-Controlled Wallet
+# Deposit USDC on EVM into Gateway via Circle Wallets
 
-## Prerequisite: Create Wallets
+This example uses Arc Testnet as the source chain, but the same deposit pattern applies to any supported EVM chain after substituting the correct Circle Wallet blockchain identifier, Gateway Wallet address, and USDC address.
 
-You must create a developer-controlled EOA wallet on **every chain** you plan to deposit from **and** transfer to.
+Canonical runnable references:
+- Unified balance EVM quickstart: https://developers.circle.com/gateway/quickstarts/unified-balance-evm.md
+- Create unified USDC balance: https://developers.circle.com/gateway/howtos/create-unified-usdc-balance.md
 
-Each wallet also needs testnet native tokens (for gas) and test USDC. Use the [Circle Faucet](https://faucet.circle.com/) for USDC and the [Console Faucet](https://console.circle.com/faucet) for native tokens.
+## What this does
 
-```ts
-import "dotenv/config";
-import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
+This script:
 
-const client = initiateDeveloperControlledWalletsClient({
-  apiKey: process.env.CIRCLE_API_KEY!,
-  entitySecret: process.env.CIRCLE_ENTITY_SECRET!,
-});
+1. Uses a Circle Developer-Controlled Wallet as the depositor
+2. Approves the Gateway Wallet contract to spend USDC
+3. Calls `deposit(address,uint256)` on the Gateway Wallet contract
+4. Waits for each asynchronous Circle Wallet transaction to complete
 
-const walletSetResponse = await client.createWalletSet({
-  name: "Gateway Wallets",
-});
+## Critical warning
 
-const walletsResponse = await client.createWallets({
-  blockchains: ["ARC-TESTNET", "AVAX-FUJI", "BASE-SEPOLIA", "ETH-SEPOLIA"],
-  count: 1,
-  walletSetId: walletSetResponse.data?.walletSet?.id ?? "",
-  metadata: [{ refId: "source-depositor" }],
-});
+Do **not** send USDC directly to the Gateway Wallet contract with a normal ERC-20 transfer. The funds will not be credited to the unified balance. You must call the Gateway `deposit()` method.
 
-// All wallets created this way will share the same address — use it as DEPOSITOR_ADDRESS
-const address = walletsResponse.data?.wallets?.[0]?.address;
-```
-
-## Deposit Script
+## Runnable example
 
 ```ts
 import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
 
-import {
-  type ChainConfig,
-  ethereumContracts,
-  baseContracts,
-  avalancheContracts,
-  arcContracts,
-} from "./contract-addresses.js";
-
-// Circle developer-controlled wallets SDK uses its own blockchain identifiers.
-// Map each ChainConfig to the corresponding SDK blockchain string.
-type CircleWalletChain = "ETH-SEPOLIA" | "BASE-SEPOLIA" | "AVAX-FUJI" | "ARC-TESTNET"
-  | "ETH" | "BASE" | "AVAX" | "ARB" | "POLY" | "SOL";
-
-const CHAIN_TO_WALLET_BLOCKCHAIN: Record<string, { testnet?: CircleWalletChain; mainnet?: CircleWalletChain }> = {
-  ethereum:  { testnet: "ETH-SEPOLIA", mainnet: "ETH" },
-  base:      { testnet: "BASE-SEPOLIA", mainnet: "BASE" },
-  avalanche: { testnet: "AVAX-FUJI", mainnet: "AVAX" },
-  arc:       { testnet: "ARC-TESTNET" },
-};
-
-const CHAIN_CONFIGS: Record<string, ChainConfig> = {
-  ethereum: ethereumContracts,
-  base: baseContracts,
-  avalanche: avalancheContracts,
-  arc: arcContracts,
-};
-
-const NETWORK = "testnet" as "mainnet" | "testnet";
+const GATEWAY_WALLET_ADDRESS = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
+const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+const BLOCKCHAIN = "ARC-TESTNET";
+const DEPOSIT_AMOUNT_USDC = "5";
 
 const API_KEY = process.env.CIRCLE_API_KEY!;
 const ENTITY_SECRET = process.env.CIRCLE_ENTITY_SECRET!;
 const DEPOSITOR_ADDRESS = process.env.DEPOSITOR_ADDRESS!;
-const DEPOSIT_AMOUNT_USDC = "2";
 
-function parseToBaseUnits(value: string): string {
+if (!API_KEY || !ENTITY_SECRET || !DEPOSITOR_ADDRESS) {
+  throw new Error(
+    "Missing required env vars: CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET, DEPOSITOR_ADDRESS",
+  );
+}
+
+const client = initiateDeveloperControlledWalletsClient({
+  apiKey: API_KEY,
+  entitySecret: ENTITY_SECRET,
+});
+
+function parseBalance(value: string): string {
   const [whole, decimal = ""] = value.split(".");
   return (whole || "0") + (decimal + "000000").slice(0, 6);
 }
 
-async function waitForTxCompletion(
-  client: ReturnType<typeof initiateDeveloperControlledWalletsClient>,
-  txId: string,
-  label: string,
-) {
-  const terminalStates = new Set(["COMPLETE", "CONFIRMED", "FAILED", "DENIED", "CANCELLED"]);
+async function waitForTxCompletion(txId: string, label: string) {
+  const terminalStates = new Set([
+    "COMPLETE",
+    "CONFIRMED",
+    "FAILED",
+    "DENIED",
+    "CANCELLED",
+  ]);
 
   while (true) {
     const { data } = await client.getTransaction({ id: txId });
@@ -87,88 +64,61 @@ async function waitForTxCompletion(
 
     if (state && terminalStates.has(state)) {
       if (state !== "COMPLETE" && state !== "CONFIRMED") {
-        throw new Error(`${label} did not complete (state=${state})`);
+        throw new Error(`${label} did not complete successfully (state=${state})`);
       }
       return data.transaction;
     }
-    await new Promise((r) => setTimeout(r, 3000));
+
+    await new Promise((resolve) => setTimeout(resolve, 3000));
   }
 }
 
-async function depositToGateway(chainName: string) {
-  const config = CHAIN_CONFIGS[chainName]?.[NETWORK];
-  const blockchain = CHAIN_TO_WALLET_BLOCKCHAIN[chainName]?.[NETWORK];
-  if (!config || !blockchain) {
-    throw new Error(`No ${NETWORK} config for chain: ${chainName}`);
-  }
+async function main() {
+  const amount = parseBalance(DEPOSIT_AMOUNT_USDC);
 
-  const client = initiateDeveloperControlledWalletsClient({
-    apiKey: API_KEY,
-    entitySecret: ENTITY_SECRET,
-  });
+  console.log(`Approving ${DEPOSIT_AMOUNT_USDC} USDC...`);
 
-  const depositAmount = parseToBaseUnits(DEPOSIT_AMOUNT_USDC);
-
-  // Step 1: Approve Gateway Wallet to spend USDC
   const approveTx = await client.createContractExecutionTransaction({
     walletAddress: DEPOSITOR_ADDRESS,
-    blockchain,
-    contractAddress: config.USDCAddress,
+    blockchain: BLOCKCHAIN,
+    contractAddress: USDC_ADDRESS,
     abiFunctionSignature: "approve(address,uint256)",
-    abiParameters: [config.GatewayWallet, depositAmount],
+    abiParameters: [GATEWAY_WALLET_ADDRESS, amount],
     fee: { type: "level", config: { feeLevel: "MEDIUM" } },
   });
 
   const approveTxId = approveTx.data?.id;
-  if (!approveTxId) throw new Error("Failed to create approve transaction");
-  await waitForTxCompletion(client, approveTxId, "USDC approve");
+  if (!approveTxId) {
+    throw new Error("Failed to create approve transaction");
+  }
+  await waitForTxCompletion(approveTxId, "USDC approve");
 
-  // Step 2: Deposit USDC into Gateway Wallet
+  console.log(`Depositing ${DEPOSIT_AMOUNT_USDC} USDC to Gateway Wallet...`);
+
   const depositTx = await client.createContractExecutionTransaction({
     walletAddress: DEPOSITOR_ADDRESS,
-    blockchain,
-    contractAddress: config.GatewayWallet,
+    blockchain: BLOCKCHAIN,
+    contractAddress: GATEWAY_WALLET_ADDRESS,
     abiFunctionSignature: "deposit(address,uint256)",
-    abiParameters: [config.USDCAddress, depositAmount],
+    abiParameters: [USDC_ADDRESS, amount],
     fee: { type: "level", config: { feeLevel: "MEDIUM" } },
   });
 
   const depositTxId = depositTx.data?.id;
-  if (!depositTxId) throw new Error("Failed to create deposit transaction");
-  await waitForTxCompletion(client, depositTxId, "Gateway deposit");
+  if (!depositTxId) {
+    throw new Error("Failed to create deposit transaction");
+  }
+  await waitForTxCompletion(depositTxId, "Gateway deposit");
+
+  console.log(
+    "Block confirmation may take additional time before the unified balance updates.",
+  );
 }
 
-async function main() {
-  const chains = process.argv.slice(2).map((c) => c.toLowerCase());
-  const valid = Object.keys(CHAIN_CONFIGS);
-
-  if (chains.length === 0) {
-    throw new Error(`Usage: npx ts-node deposit.ts <chain1> [chain2...] | all\nValid: ${valid.join(", ")}`);
-  }
-
-  const selected = chains[0] === "all" ? valid : chains;
-  const invalid = selected.filter((c) => !CHAIN_CONFIGS[c]);
-  if (invalid.length > 0) {
-    throw new Error(`Unsupported chain(s): ${invalid.join(", ")}. Valid: ${valid.join(", ")}`);
-  }
-
-  for (const chain of selected) {
-    console.log(`\n=== Depositing ${DEPOSIT_AMOUNT_USDC} USDC on ${chain} (${NETWORK}) ===`);
-    await depositToGateway(chain);
-  }
-
-  console.log("\nBlock confirmation may take up to 19 minutes for some chains.");
-}
-
-main().catch((err) => {
-  console.error("Error:", err);
+main().catch((error) => {
+  console.error(error);
   process.exit(1);
 });
 ```
 
-**Environment variables**:
-- `CIRCLE_API_KEY` -- Circle developer API key
-- `CIRCLE_ENTITY_SECRET` -- Entity secret for developer-controlled wallets
-- `DEPOSITOR_ADDRESS` -- EVM address of the developer-controlled wallet to deposit from
 
-**Dependencies**: `@circle-fin/developer-controlled-wallets`

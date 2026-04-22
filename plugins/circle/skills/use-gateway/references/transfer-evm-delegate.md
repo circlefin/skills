@@ -1,20 +1,27 @@
-# Transfer Unified USDC from EVM to EVM via Circle Wallets
+# Transfer Unified USDC from an SCA Depositor via Delegate
 
-This example burns from Arc Testnet and mints on Base Sepolia. The same pattern applies to other supported EVM chains after substituting the correct chain config, contract addresses, domain IDs, and Circle Wallet blockchain identifiers.
+This example burns from Arc Testnet and mints on Base Sepolia using Circle Developer-Controlled Wallets. The same pattern applies to other supported EVM chains after substituting the correct chain config, contract addresses, domain IDs, and wallet blockchain identifiers.
 
 Canonical runnable references:
+- Manage delegates: https://developers.circle.com/gateway/howtos/manage-delegates.md
 - Unified balance EVM quickstart: https://developers.circle.com/gateway/quickstarts/unified-balance-evm.md
-- Transfer unified USDC balance: https://developers.circle.com/gateway/howtos/transfer-unified-usdc-balance.md
 
 ## What this does
 
 This script:
 
-1. Builds a Gateway burn intent for an EVM source chain
-2. Signs the burn intent with a Circle Developer-Controlled Wallet
-3. Submits the signed burn intent to the Gateway `/transfer` API
-4. Calls `gatewayMint(bytes,bytes)` on the destination chain through Circle Wallets
-5. Waits for the mint transaction to complete
+1. Assumes the source depositor is an SCA that already holds a unified Gateway balance
+2. Assumes an EOA delegate has already been added for the source chain
+3. Builds a burn intent with the SCA as `sourceDepositor` and the EOA as `sourceSigner`
+4. Signs the burn intent with the delegate wallet
+5. Submits the signed burn intent to the Gateway `/transfer` API
+6. Calls `gatewayMint(bytes,bytes)` on the destination chain
+
+## Delegate requirement
+
+For SCA depositors, Gateway outbound transfers require a delegate EOA because the burn intent must be signed with an ECDSA-capable signer.
+Add the delegate on the source chain before using this pattern.
+In the burn intent, set `sourceDepositor` to the SCA address and `sourceSigner` to the delegate EOA address.
 
 ## Runnable example
 
@@ -22,20 +29,19 @@ This script:
 import { randomBytes } from "node:crypto";
 import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
 
+const GATEWAY_WALLET_ADDRESS = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
 const GATEWAY_MINTER_ADDRESS = "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B";
 const GATEWAY_API_URL = "https://gateway-api-testnet.circle.com/v1/transfer";
 
 const SOURCE_CHAIN = {
   walletChain: "ARC-TESTNET",
   domain: 26,
-  gatewayWallet: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
   usdc: "0x3600000000000000000000000000000000000000",
 };
 
 const DESTINATION_CHAIN = {
   walletChain: "BASE-SEPOLIA",
   domain: 6,
-  gatewayMinter: "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B",
   usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
 };
 
@@ -46,12 +52,13 @@ const MAX_UINT256_DEC = ((1n << 256n) - 1n).toString();
 
 const API_KEY = process.env.CIRCLE_API_KEY!;
 const ENTITY_SECRET = process.env.CIRCLE_ENTITY_SECRET!;
-const DEPOSITOR_ADDRESS = process.env.DEPOSITOR_ADDRESS!;
+const DEPOSITOR_ADDRESS = process.env.DEPOSITOR_ADDRESS!; // SCA
+const DELEGATE_WALLET_ADDRESS = process.env.DELEGATE_WALLET_ADDRESS!; // EOA
 const RECIPIENT_ADDRESS = process.env.RECIPIENT_ADDRESS ?? DEPOSITOR_ADDRESS;
 
-if (!API_KEY || !ENTITY_SECRET || !DEPOSITOR_ADDRESS) {
+if (!API_KEY || !ENTITY_SECRET || !DEPOSITOR_ADDRESS || !DELEGATE_WALLET_ADDRESS) {
   throw new Error(
-    "Missing required env vars: CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET, DEPOSITOR_ADDRESS",
+    "Missing required env vars: CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET, DEPOSITOR_ADDRESS, DELEGATE_WALLET_ADDRESS",
   );
 }
 
@@ -130,6 +137,9 @@ async function waitForTxCompletion(txId: string, label: string) {
 }
 
 async function main() {
+  console.log(`Depositor (SCA): ${DEPOSITOR_ADDRESS}`);
+  console.log(`Delegate (EOA): ${DELEGATE_WALLET_ADDRESS}`);
+
   const burnIntent = {
     maxBlockHeight: MAX_UINT256_DEC,
     maxFee: MAX_FEE,
@@ -137,13 +147,13 @@ async function main() {
       version: 1,
       sourceDomain: SOURCE_CHAIN.domain,
       destinationDomain: DESTINATION_CHAIN.domain,
-      sourceContract: addressToBytes32(SOURCE_CHAIN.gatewayWallet),
-      destinationContract: addressToBytes32(DESTINATION_CHAIN.gatewayMinter),
+      sourceContract: addressToBytes32(GATEWAY_WALLET_ADDRESS),
+      destinationContract: addressToBytes32(GATEWAY_MINTER_ADDRESS),
       sourceToken: addressToBytes32(SOURCE_CHAIN.usdc),
       destinationToken: addressToBytes32(DESTINATION_CHAIN.usdc),
       sourceDepositor: addressToBytes32(DEPOSITOR_ADDRESS),
       destinationRecipient: addressToBytes32(RECIPIENT_ADDRESS),
-      sourceSigner: addressToBytes32(DEPOSITOR_ADDRESS),
+      sourceSigner: addressToBytes32(DELEGATE_WALLET_ADDRESS),
       destinationCaller: addressToBytes32("0x0000000000000000000000000000000000000000"),
       value: parseBalance(TRANSFER_AMOUNT_USDC),
       salt: "0x" + randomBytes(32).toString("hex"),
@@ -159,14 +169,14 @@ async function main() {
   };
 
   const signResponse = await client.signTypedData({
-    walletAddress: DEPOSITOR_ADDRESS,
+    walletAddress: DELEGATE_WALLET_ADDRESS,
     blockchain: SOURCE_CHAIN.walletChain,
     data: stringifyTypedData(typedData),
   });
 
   const burnSignature = signResponse.data?.signature;
   if (!burnSignature) {
-    throw new Error("Failed to sign burn intent");
+    throw new Error("Failed to sign burn intent with delegate wallet");
   }
 
   const transferResponse = await fetch(GATEWAY_API_URL, {

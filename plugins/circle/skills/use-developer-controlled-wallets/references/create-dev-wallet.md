@@ -43,3 +43,9 @@ const solWalletResponse = await circleDeveloperSdk.createWallets({
 ```
 
 Same flow on a different blockchain/account type.
+
+## Reference Links
+
+- [Create Your First Dev-Controlled Wallet](https://developers.circle.com/wallets/dev-controlled/create-your-first-wallet)
+- [Create Wallet Set API](https://developers.circle.com/api-reference/wallets/developer-controlled-wallets/create-wallet-set)
+- [Create Wallet API](https://developers.circle.com/api-reference/wallets/developer-controlled-wallets/create-wallet)

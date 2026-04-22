@@ -1,18 +1,8 @@
 # Interact with a Deployed Contract
 
-## Overview
+Use these TypeScript snippets to read contract metadata, query read-only methods, and execute write methods.
 
-Use this reference to:
-1. Read contract metadata/functions
-2. Query read-only methods (`view`/`pure`)
-3. Execute write methods (`nonpayable`/`payable`)
-
-## Prerequisites
-
-- Contract is already deployed (or imported)
-- Wallet ID available for write transactions
-
-## 1) Get contract details and ABI functions
+## Get contract details and ABI functions
 
 ```ts
 const contractId = "YOUR_CONTRACT_ID";
@@ -22,7 +12,7 @@ console.log(contractRes.data?.contract?.contractAddress);
 console.log(contractRes.data?.contract?.functions ?? []);
 ```
 
-## 2) Query a read function
+## Query a read function
 
 `abiFunctionSignature` format is `functionName(type1,type2,...)`.
 
@@ -45,12 +35,12 @@ const queryRes = await scpClient.queryContract({
 console.log(queryRes.data?.outputValues);
 ```
 
-## 3) Execute a write function
+## Execute a write function
 
 Write calls require `walletId` and gas fee settings.
 
 ```ts
-const executeRes = await walletClient.createContractExecutionTransaction({
+const executeRes = await walletsClient.createContractExecutionTransaction({
   walletId: "YOUR_WALLET_ID",
   contractAddress: "YOUR_CONTRACT_ADDRESS",
   abiFunctionSignature: "safeMint(address,uint256)",
@@ -65,11 +55,13 @@ const txId = executeRes.data?.transactionId;
 console.log({ txId });
 ```
 
-## 4) Poll write transaction status
+## Poll write transaction status
 
 ```ts
-const txRes = await walletClient.getTransaction({ id: txId! });
+const txRes = await walletsClient.getTransaction({ id: txId! });
 console.log(txRes.data?.transaction?.state);
 ```
 
-Common states: `INITIATED`, `SENT`, `CONFIRMED`, `COMPLETE`, `FAILED`.
+## Reference Links
+
+- [Interact with a Smart Contract Guide](https://developers.circle.com/contracts/scp-interact-smart-contract.md)

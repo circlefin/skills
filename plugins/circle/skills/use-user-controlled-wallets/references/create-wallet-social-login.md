@@ -22,79 +22,52 @@ Complete flow for creating user-controlled wallets using Google OAuth. The same 
    - Configure Google Client ID in Wallets -> User Controlled -> Configurator -> Authentication Methods -> Social Logins
    - Copy the App ID from the configurator
 
-## Backend Component
+## Backend SDK Methods
 
-Uses `@circle-fin/user-controlled-wallets` SDK for all server-side operations. The backend needs a server exposing the endpoints listed below each function.
+### Step 1: Create device token
 
-```typescript
-import {
-  Blockchain,
-  initiateUserControlledWalletsClient,
-} from "@circle-fin/user-controlled-wallets";
+Call this before initiating OAuth on the frontend.
 
-const circleClient = initiateUserControlledWalletsClient({
-  apiKey: process.env.CIRCLE_API_KEY!,
+```ts
+const response = await circleClient.createDeviceTokenForSocialLogin({
+  deviceId,
 });
+// response.data: { deviceToken, deviceEncryptionKey }
+```
 
-/**
- * Creates device token for social login authentication.
- * Call this before initiating OAuth on the frontend.
- * Endpoint: POST /api/wallet/device-token { deviceId }
- */
-export async function createDeviceToken(deviceId: string) {
-  const response = await circleClient.createDeviceTokenForSocialLogin({
-    deviceId,
-  });
-  return {
-    deviceToken: response.data?.deviceToken,
-    deviceEncryptionKey: response.data?.deviceEncryptionKey,
-  };
-}
+### Step 2: Initialize user and create wallet
 
-/**
- * Initializes a user after successful social login.
- * Returns a challengeId if the user needs to create a wallet.
- * Error code 155106 means user already exists - fetch wallets instead.
- * Endpoint: POST /api/wallet/initialize { userToken, blockchains? }
- */
-export async function initializeUser(
-  userToken: string,
-  blockchains: Blockchain[] = [Blockchain.MaticAmoy]
-) {
-  const response = await circleClient.createUserPinWithWallets({
-    userToken,
-    blockchains,
-    accountType: "EOA",
-  });
+Returns a `challengeId` if the user needs to create a wallet. Error code 155106 means user already exists -- fetch wallets instead.
 
-  return {challengeId: response.data?.challengeId};
-}
+```ts
+const response = await circleClient.createUserPinWithWallets({
+  userToken,
+  blockchains: [Blockchain.MaticAmoy],
+  accountType: "EOA",
+});
+// response.data: { challengeId }
+```
 
-/**
- * Lists all wallets for a user.
- * Endpoint: POST /api/wallet/list { userToken }
- */
-export async function listUserWallets(userToken: string) {
-  const response = await circleClient.listWallets({ userToken });
-  return response.data?.wallets ?? [];
-}
+### List wallets
 
-/**
- * Gets token balances for a specific wallet.
- * Endpoint: POST /api/wallet/balances { walletId, userToken }
- */
-export async function getWalletBalances(walletId: string, userToken: string) {
-  const response = await circleClient.getWalletTokenBalance({
-    walletId,
-    userToken,
-  });
-  return response.data?.tokenBalances ?? [];
-}
+```ts
+const response = await circleClient.listWallets({ userToken });
+// response.data: { wallets }
+```
+
+### Get token balances
+
+```ts
+const response = await circleClient.getWalletTokenBalance({
+  walletId,
+  userToken,
+});
+// response.data: { tokenBalances }
 ```
 
 ## Frontend Component
 
-Uses `@circle-fin/w3s-pw-web-sdk` for OAuth flow and challenge execution. The SDK must be initialized with a login callback to handle the OAuth redirect response.
+The SDK must be initialized with a login callback to handle the OAuth redirect response.
 
 IMPORTANT: Social login uses OAuth redirects. Use cookies (e.g., `react-cookie`) instead of React state to persist `deviceToken` and `deviceEncryptionKey` across page reloads.
 
@@ -288,3 +261,8 @@ apple: { clientId: "...", redirectUri: "..." }
 | 155106 | User already initialized | Fetch existing wallets instead of creating |
 | 155104 | Invalid user token | Re-authenticate user |
 | 155101 | Invalid device token | Regenerate device token |
+
+## Reference Links
+
+- [Create User Wallets with Social Login](https://developers.circle.com/wallets/user-controlled/create-user-wallets-with-social-login)
+- [Create Device Token Social Login API](https://developers.circle.com/api-reference/wallets/user-controlled-wallets/create-device-token-social-login)

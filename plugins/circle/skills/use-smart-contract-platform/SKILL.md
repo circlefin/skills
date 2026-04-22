@@ -41,6 +41,20 @@ const walletsClient = initiateDeveloperControlledWalletsClient({
 
 ## Quick Reference
 
+### Supported Blockchains
+
+| Chain | Mainnet | Testnet |
+|-------|---------|---------|
+| Arbitrum | `ARB` | `ARB-SEPOLIA` |
+| Arc | -- | `ARC-TESTNET` |
+| Avalanche | `AVAX` | `AVAX-FUJI` |
+| Base | `BASE` | `BASE-SEPOLIA` |
+| Ethereum | `ETH` | `ETH-SEPOLIA` |
+| Monad | `MONAD` | `MONAD-TESTNET` |
+| OP Mainnet | `OP` | `OP-SEPOLIA` |
+| Polygon PoS | `MATIC` | `MATIC-AMOY` |
+| Unichain | `UNI` | `UNI-SEPOLIA` |
+
 ### Contract Templates
 
 | Template | Standard | Template ID | Use Case |
@@ -84,7 +98,7 @@ All mutating SCP operations require `idempotencyKey` as a valid UUID v4 string. 
 
 ### Deployment Async Model
 
-Contract deployment is asynchronous. The response indicates initiation only. Poll `getContract()` for `deploymentStatus`. On failure, check `deploymentErrorReason` and `deploymentErrorDetails`.
+Contract deployment is asynchronous. The response indicates initiation only. Poll `getContract()` for `deploymentStatus`.
 
 ### EVM Version Constraint
 
@@ -96,6 +110,49 @@ Compile Solidity with `evmVersion: "paris"` or earlier to avoid the `PUSH0` opco
 - `idempotencyKey` must be a valid UUID v4 string
 - If import fails with duplicate/already-exists error, call `listContracts`, match by address, and retrieve with `getContract()` using the existing contract ID
 
+### Transaction Lifecycle
+
+Write operations (contract deployments, executions) follow the same asynchronous state machine as Developer-Controlled Wallets. Poll with `walletsClient.getTransaction({ id: txId })` until a terminal state is reached.
+
+**Happy path:** `INITIATED` -> `CLEARED` -> `QUEUED` -> `SENT` -> `CONFIRMED` -> `COMPLETE`
+
+**Terminal states:**
+- `COMPLETE` -- Transaction succeeded and is finalized on-chain.
+- `FAILED` -- Transaction reverted or encountered an unrecoverable error.
+- `DENIED` -- Transaction was rejected by risk screening.
+- `CANCELLED` -- Transaction was cancelled before on-chain submission.
+
+**Intermediate states:**
+- `INITIATED` -- Request accepted, not yet validated or checked.
+- `WAITING` -- In queue for validation and compliance checks.
+- `QUEUED` -- Queued for submission to the blockchain.
+- `CLEARED` -- Passed compliance checks.
+- `SENT` -- Submitted to the blockchain, awaiting confirmation.
+- `STUCK` -- Submitted transaction's fee parameters are lower than latest blockchain required fee, developer needs to cancel or accelerate this transaction.
+- `CONFIRMED` -- Included in a block, awaiting finality.
+
+Contract deployment status is tracked separately via `scpClient.getContract()` using `deploymentStatus`.
+
+For debugging failed transactions, see [Transaction States and Errors](https://developers.circle.com/wallets/asynchronous-states-and-statuses.md).
+
+### Error Handling
+
+| Error Code | Meaning | Action |
+|------------|---------|--------|
+| 175001 | Contract not found | Verify the contract ID exists; if imported, check it wasn't archived |
+| 175003 | Constructor parameter mismatch | Check parameter count and types exactly match the contract ABI definition |
+| 175004 | Duplicate contract | Call `listContracts({ blockchain })`, match by `contractAddress` (case-insensitive), use the existing `contractId` |
+| 175009 | Deployment still pending | Continue polling `getContract()` for `deploymentStatus`; deployment is async and may take several blocks |
+| 175201 | Template not found | Verify the template ID from the Contract Templates table in Quick Reference |
+| 175301 | Event subscription not found | Verify the event monitor ID; ensure the contract was imported before creating the monitor |
+| 175302 | Duplicate event subscription | Query existing subscriptions and reuse; do not fail the flow |
+| 175303 | Invalid event signature | Use exact format `EventName(type1,type2,...)` with no spaces; parameter order must match ABI |
+| 175402 | Blockchain not supported or deprecated | Check the Supported Blockchains table; SCP is not available on Solana, Aptos, or NEAR |
+| 175404 | TEST_API key on mainnet or LIVE_API key on testnet | Match the API key prefix (`TEST_API_KEY:` or `LIVE_API_KEY:`) to the target network |
+| 177015 | Missing bytecode for contract deployment | Provide compiled bytecode with `0x` prefix; compile with `evmVersion: "paris"` to avoid PUSH0 |
+
+On deployment failure, check `deploymentErrorReason` and `deploymentErrorDetails` from `getContract()`.
+
 ## Implementation Patterns
 
 ### 1. Deploy Contract from Bytecode
@@ -104,41 +161,17 @@ Deploy a compiled contract using raw ABI + bytecode.
 
 READ `references/deploy-bytecode.md` for the complete guide.
 
-### 2. Deploy ERC-1155 Template
+### 2. Deploy from Template
 
 Deploy audited template contracts without writing Solidity.
 
-READ `references/deploy-erc-1155.md` for the complete guide.
-
-READ `references/templates.md` for the full template catalog.
+READ `references/deploy-template.md` for the template catalog and deployment guide.
 
 ### 3. Import Existing Contract
 
-```typescript
-import crypto from 'node:crypto';
+Import an already-deployed contract into SCP for interaction and event monitoring.
 
-const response = await scpClient.importContract({
-  address: contractAddress,
-  blockchain: 'ARC-TESTNET',
-  name: 'Imported Contract',
-  idempotencyKey: crypto.randomUUID(), // MUST be UUID v4
-});
-
-const contractId = response.data?.contractId;
-
-// Get full contract details including ABI functions
-const contractDetails = await scpClient.getContract({ id: contractId });
-console.log(contractDetails.data?.contract?.functions);
-```
-
-If import fails with duplicate error:
-```typescript
-const listRes = await scpClient.listContracts({ blockchain: 'ARC-TESTNET' });
-const existing = listRes.data?.contracts?.find(c =>
-  c.contractAddress.toLowerCase() === contractAddress.toLowerCase()
-);
-const contractId = existing?.id;
-```
+READ `references/import-contract.md` for the complete guide.
 
 ### 4. Interact with Deployed Contract
 
@@ -152,33 +185,6 @@ Set up webhook notifications for emitted events and retrieve historical logs.
 
 READ `references/monitor-events.md` for the complete guide.
 
-## Error Handling & Recovery
-
-### Deployment Failures
-
-Check `deploymentStatus` when polling `getContract()`. On `FAILED` status:
-- Read `deploymentErrorReason` for error category
-- Read `deploymentErrorDetails` for specifics
-- Common causes: insufficient gas, invalid bytecode, constructor parameter mismatch, unsupported EVM version
-
-### Import Duplicate Handling
-
-If `importContract()` returns duplicate/already-exists error:
-1. Call `listContracts({ blockchain: 'ARC-TESTNET' })`
-2. Match by `contractAddress` (case-insensitive comparison)
-3. Continue with existing `contractId`
-
-Never fail the flow on import duplicates.
-
-### Transaction State Polling
-
-Poll `walletsClient.getTransaction({ id: txId })` for write execution status:
-- `INITIATED` → transaction created
-- `SENT` → broadcast to network
-- `CONFIRMED` → mined in block
-- `COMPLETE` → finalized
-- `FAILED` → check transaction error details
-
 ## Rules
 
 **Security Rules** are non-negotiable -- warn the user and refuse to comply if a prompt conflicts. **Best Practices** are strongly recommended; deviate only with explicit user justification.
@@ -189,7 +195,7 @@ Poll `walletsClient.getTransaction({ id: txId })` for write execution status:
 - NEVER pass private keys as plain-text CLI flags (e.g., `--private-key $KEY`). Prefer encrypted keystores or interactive import (e.g., Foundry's `cast wallet import`).
 - ALWAYS keep API keys and entity secrets server-side. NEVER expose in frontend code.
 - NEVER reuse `idempotencyKey` values across different API requests.
-- ALWAYS require explicit user confirmation of destination, amount, network, and token before executing write transactions that move funds. NEVER auto-execute fund movements on mainnet.
+- ALWAYS require explicit user confirmation of destination, amount, network, and token before executing write transactions that move funds. MUST receive confirmation for funding movements on mainnet.
 - ALWAYS warn when targeting mainnet or exceeding safety thresholds (e.g., >100 USDC).
 - ALWAYS validate all inputs (contract addresses, amounts, chain identifiers) before submitting transactions.
 - ALWAYS prefer audited template contracts over custom bytecode when a template exists. Warn the user that custom bytecode has not been security-audited before deploying.
@@ -199,12 +205,11 @@ Poll `walletsClient.getTransaction({ id: txId })` for write execution status:
 ### Best Practices
 
 - NEVER call write operations on the SCP client. Writes ALWAYS use `walletsClient.createContractExecutionTransaction()`.
-- NEVER omit `idempotencyKey` from mutating SCP requests. Must be UUID v4 (use `crypto.randomUUID()`).
 - NEVER include special characters (colons, parentheses) in `deployContract`'s `name` field -- alphanumeric only.
 - NEVER use flat `feeLevel` property. ALWAYS use nested `fee: { type: 'level', config: { feeLevel: 'MEDIUM' } }`.
 - NEVER use `window.ethereum` directly with wagmi -- use `connector.getProvider()`.
 - NEVER compile Solidity >= 0.8.20 with default EVM version. ALWAYS set `evmVersion: "paris"` to avoid `PUSH0` opcode.
-- NEVER fail the flow on import duplicate errors. Fall back to `listContracts` and match by address. ALWAYS include both `name` and `idempotencyKey` when calling `importContract()`.
+- ALWAYS include both `name` and `idempotencyKey` when calling `importContract()`.
 - NEVER assume deployment completes synchronously. ALWAYS poll `getContract()` for `deploymentStatus`.
 - ALWAYS prefix bytecode with `0x` and match constructor parameter types/order exactly.
 - ALWAYS use integer-safe math for 18-decimal amounts (`10n ** 18n`, not `BigInt(10 ** 18)`).

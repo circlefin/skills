@@ -1,6 +1,6 @@
 # Circle Wallets Adapter (Developer-Controlled Wallets)
 
-Reference implementation for bridging USDC using Circle developer-controlled wallets. Supports any chain to any chain (EVM <-> EVM, EVM <-> Solana, Solana <-> Solana). Includes examples for both App Kit and standalone Bridge Kit.
+Reference implementation for token swaps using Circle developer-controlled wallets. Server-side only -- uses Circle API key and entity secret for wallet management.
 
 ## Setup
 
@@ -8,8 +8,8 @@ Reference implementation for bridging USDC using Circle developer-controlled wal
 # App Kit (recommended)
 npm install @circle-fin/app-kit @circle-fin/adapter-circle-wallets
 
-# Bridge Kit (standalone)
-npm install @circle-fin/bridge-kit @circle-fin/adapter-circle-wallets
+# Swap Kit (standalone)
+npm install @circle-fin/swap-kit @circle-fin/adapter-circle-wallets
 ```
 
 ## Environment Variables
@@ -17,8 +17,7 @@ npm install @circle-fin/bridge-kit @circle-fin/adapter-circle-wallets
 ```
 CIRCLE_API_KEY=           # Circle API key (for Circle Wallets adapter)
 CIRCLE_ENTITY_SECRET=     # Entity secret (for Circle Wallets adapter)
-EVM_WALLET_ADDRESS=       # Developer-controlled EVM wallet address
-SOLANA_WALLET_ADDRESS=    # Developer-controlled Solana wallet address
+KIT_KEY=                  # Kit key from Circle Developer Console
 ```
 
 ## Using App Kit
@@ -30,16 +29,15 @@ import { inspect } from "util";
 
 const kit = new AppKit();
 
-const bridgeUSDC = async (): Promise<void> => {
+const swapTokens = async (): Promise<void> => {
   const apiKey = process.env.CIRCLE_API_KEY;
   const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
-  const evmWalletAddress = process.env.EVM_WALLET_ADDRESS;
-  const solanaWalletAddress = process.env.SOLANA_WALLET_ADDRESS;
+  const walletAddress = process.env.WALLET_ADDRESS;
   if (!apiKey || !entitySecret) {
     throw new Error("CIRCLE_API_KEY and CIRCLE_ENTITY_SECRET env vars must be set");
   }
-  if (!evmWalletAddress || !solanaWalletAddress) {
-    throw new Error("EVM_WALLET_ADDRESS and SOLANA_WALLET_ADDRESS env vars must be set");
+  if (!walletAddress) {
+    throw new Error("WALLET_ADDRESS env var must be set");
   }
 
   try {
@@ -48,18 +46,18 @@ const bridgeUSDC = async (): Promise<void> => {
       entitySecret,
     });
 
-    const result = await kit.bridge({
+    const result = await kit.swap({
       from: {
         adapter,
-        chain: "Arc_Testnet",
-        address: evmWalletAddress,
+        chain: "Ethereum",
+        address: walletAddress,
       },
-      to: {
-        adapter,
-        chain: "Solana_Devnet",
-        address: solanaWalletAddress,
+      tokenIn: "USDT",
+      tokenOut: "USDC",
+      amountIn: "1.00",
+      config: {
+        kitKey: process.env.KIT_KEY as string,
       },
-      amount: "1.00",
     });
 
     console.log("RESULT", inspect(result, false, null, true));
@@ -68,28 +66,27 @@ const bridgeUSDC = async (): Promise<void> => {
   }
 };
 
-void bridgeUSDC();
+void swapTokens();
 ```
 
-## Using Bridge Kit
+## Using Swap Kit
 
 ```ts
-import { BridgeKit } from "@circle-fin/bridge-kit";
+import { SwapKit } from "@circle-fin/swap-kit";
 import { createCircleWalletsAdapter } from "@circle-fin/adapter-circle-wallets";
 import { inspect } from "util";
 
-const kit = new BridgeKit();
+const kit = new SwapKit();
 
-const bridgeUSDC = async (): Promise<void> => {
+const swapTokens = async (): Promise<void> => {
   const apiKey = process.env.CIRCLE_API_KEY;
   const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
-  const evmWalletAddress = process.env.EVM_WALLET_ADDRESS;
-  const solanaWalletAddress = process.env.SOLANA_WALLET_ADDRESS;
+  const walletAddress = process.env.WALLET_ADDRESS;
   if (!apiKey || !entitySecret) {
     throw new Error("CIRCLE_API_KEY and CIRCLE_ENTITY_SECRET env vars must be set");
   }
-  if (!evmWalletAddress || !solanaWalletAddress) {
-    throw new Error("EVM_WALLET_ADDRESS and SOLANA_WALLET_ADDRESS env vars must be set");
+  if (!walletAddress) {
+    throw new Error("WALLET_ADDRESS env var must be set");
   }
 
   try {
@@ -98,18 +95,18 @@ const bridgeUSDC = async (): Promise<void> => {
       entitySecret,
     });
 
-    const result = await kit.bridge({
+    const result = await kit.swap({
       from: {
         adapter,
-        chain: "Arc_Testnet",
-        address: evmWalletAddress,
+        chain: "Ethereum",
+        address: walletAddress,
       },
-      to: {
-        adapter,
-        chain: "Solana_Devnet",
-        address: solanaWalletAddress,
+      tokenIn: "USDT",
+      tokenOut: "USDC",
+      amountIn: "1.00",
+      config: {
+        kitKey: process.env.KIT_KEY as string,
       },
-      amount: "1.00",
     });
 
     console.log("RESULT", inspect(result, false, null, true));
@@ -118,5 +115,5 @@ const bridgeUSDC = async (): Promise<void> => {
   }
 };
 
-void bridgeUSDC();
+void swapTokens();
 ```

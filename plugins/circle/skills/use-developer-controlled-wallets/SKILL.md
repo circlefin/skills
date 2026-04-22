@@ -1,6 +1,6 @@
 ---
 name: use-developer-controlled-wallets
-description: "Create and manage Circle developer-controlled wallets where the application retains full custody of wallet keys on behalf of end-users. Covers wallet sets, entity secret registration, token transfers, and balance checks via the developer controlled wallets SDK. Triggers on: developer-controlled wallets, dev-controlled wallets, create wallet, wallet set, entity secret, transfer tokens, check balance, EOA wallet, SCA wallet, initiateDeveloperControlledWalletsClient, createWalletSet, createWallets, custody wallet."
+description: "Create and manage Circle developer-controlled wallets where the application retains full custody of wallet keys on behalf of end-users. Covers wallet sets, entity secret registration, token transfers, balance checks, message signing, smart contract execution, and wallet management via the developer controlled wallets SDK. Triggers on: developer-controlled wallets, dev-controlled wallets, create wallet, wallet set, entity secret, transfer tokens, check balance, EOA wallet, SCA wallet, initiateDeveloperControlledWalletsClient, createWalletSet, createWallets, custody wallet, sign message, sign transaction, sign typed data, contract execution, execute contract, call contract, wallet upgrade, derive wallet, estimate fee, accelerate transaction, cancel transaction."
 ---
 
 ## Overview
@@ -53,7 +53,33 @@ The SDK automatically generates a fresh entity secret ciphertext for each API re
   - **EOA** (Externally Owned Account) -- default choice. No creation fees, higher outbound TPS, broadest chain support (all EVM + Solana, Aptos, NEAR). Requires native tokens for gas.
   - **SCA** (Smart Contract Account) -- ERC-4337 compliant. Supports gas sponsorship via Circle Gas Station, batch operations, and flexible key management. EVM-only (not available on Solana, Aptos, NEAR). Avoid on Ethereum mainnet due to high gas costs; prefer on L2s.
 - **Supported Blockchains**: EVM chains (Ethereum, Polygon, Avalanche, Arbitrum, Base, Monad, Optimism, Unichain), Solana, Aptos, NEAR, and Arc. See https://developers.circle.com/wallets/account-types for the latest.
-- **Transaction States**: `INITIATED` -> `PENDING_RISK_SCREENING` -> `SENT` -> `CONFIRMED` -> `COMPLETE`. Failure states: `FAILED`, `DENIED`, `CANCELLED`.
+
+## Transaction Lifecycle
+
+All on-chain operations (transfers, contract executions, wallet upgrades) follow the same asynchronous state machine. Poll with `circleDeveloperSdk.getTransaction({ id })` until a terminal state is reached.
+
+**Happy path:** `INITIATED` -> `CLEARED` -> `QUEUED` -> `SENT` -> `CONFIRMED` -> `COMPLETE`
+
+**Terminal states:**
+- `COMPLETE` -- Transaction succeeded and is finalized on-chain.
+- `FAILED` -- Transaction reverted or encountered an unrecoverable error.
+- `DENIED` -- Transaction was rejected by risk screening.
+- `CANCELLED` -- Transaction was cancelled before on-chain submission.
+
+**Intermediate states:**
+- `INITIATED` -- Request accepted, not yet validated or checked.
+- `WAITING` -- In queue for validation and compliance checks.
+- `QUEUED` -- Queued for submission to the blockchain.
+- `CLEARED` -- Passed compliance checks.
+- `SENT` -- Submitted to the blockchain, awaiting confirmation.
+- `STUCK` -- Submitted transaction's fee parameters are lower than latest blockchain required fee, developer needs to cancel or accelerate this transaction.
+- `CONFIRMED` -- Included in a block, awaiting finality.
+
+**Recommended: Subscribe to [Webhook Notifications](https://developers.circle.com/wallets/webhook-notifications)** instead of polling. Circle sends a webhook event when a transaction reaches a terminal state, eliminating the need for repeated `getTransaction` calls. Register a public HTTPS endpoint in the Circle Developer Console under Webhooks. Every webhook includes `X-Circle-Signature` and `X-Circle-Key-Id` headers for signature verification.
+
+Polling with `getTransaction` is still available as a fallback or for simple scripts, but webhooks are the recommended approach for production systems.
+
+For debugging failed or denied transactions, see [Transaction Errors](https://developers.circle.com/w3s/asynchronous-states-and-statuses#transaction-errors).
 
 ## Implementation Patterns
 
@@ -67,7 +93,19 @@ The SDK automatically generates a fresh entity secret ciphertext for each API re
 
 ### 3. Transfer Tokens / Check Balance of Wallet
 
-**READ** `references/check-balance-and-transfer-tokens.md` for the complete guide.
+**READ** `references/check-balance-and-transfer-tokens.md` for the complete guide. Includes fee estimation, transaction acceleration, and cancellation.
+
+### 4. Sign Messages
+
+**READ** `references/sign-message.md` for the complete guide. Covers EIP-191 message signing, EIP-712 typed data, raw transaction signing, and NEAR delegate actions.
+
+### 5. Execute Smart Contracts
+
+**READ** `references/contract-execution.md` for the complete guide. Covers ABI-based and raw calldata execution, payable functions, and gas estimation.
+
+### 6. Wallet Management (Upgrade & Derive)
+
+**READ** `references/wallet-management.md` for the complete guide. Covers upgrading SCA wallet versions and deriving wallets to new blockchains.
 
 ## Rules
 
@@ -78,21 +116,26 @@ The SDK automatically generates a fresh entity secret ciphertext for each API re
 - NEVER hardcode, commit, or log secrets (API keys, entity secrets, private keys). ALWAYS use environment variables or a secrets manager. Add `.gitignore` entries for `.env*`, `*.pem`, and `*-recovery-file.json` when scaffolding.
 - ALWAYS store recovery files outside the repository root. NEVER commit them to version control.
 - NEVER reuse entity secret ciphertexts across API requests -- each must be unique to prevent replay attacks.
-- NEVER register an entity secret on behalf of the user -- they must generate, register, and store it themselves.
-- ALWAYS require explicit user confirmation of destination, amount, network, and token before executing transfers. NEVER auto-execute fund movements on mainnet.
+- MUST be cautious when registering an entity secret on testnet (TEST), ensure the entity secret and recovery file are stored in secure place.
+- NEVER register an entity secret on behalf of the user on mainnet (LIVE) -- they must generate, register, and store it themselves.
+- ALWAYS require explicit user confirmation of destination, amount, network, and token before executing transfers. MUST receive confirmation for funding movements on mainnet.
 - ALWAYS warn when targeting mainnet or exceeding safety thresholds (e.g., >100 USDC).
 - ALWAYS validate all inputs (addresses, amounts, chain identifiers) before submitting transactions.
 - ALWAYS warn before interacting with unaudited or unknown contracts.
+- ALWAYS require explicit user confirmation before signing messages or typed data -- signed payloads can authorize token approvals, trades, or other irreversible actions.
 
 ### Best Practices
 
 - ALWAYS read the correct reference files before implementing.
 - NEVER use `client.getWallet` or `client.getWallets` for balances -- these endpoints never return balance data. See reference file for correct approach.
-- ALWAYS include a UUID v4 `idempotencyKey` in all mutating API requests.
+- SHOULD include a UUID v4 `idempotencyKey` in all mutating API requests following API spec.
 - ALWAYS ensure EOA wallets hold native tokens (ETH, MATIC, SOL, etc.) for gas before outbound transactions.
 - ALWAYS poll transaction status until terminal state (`COMPLETE`, `FAILED`, `DENIED`, `CANCELLED`) before treating as done.
 - ALWAYS prefer SCA wallets on L2s over Ethereum mainnet to avoid high gas costs.
 - ALWAYS default to testnet. Require explicit user confirmation before targeting mainnet.
+- ALWAYS estimate fees before contract execution or large transfers so the user understands gas costs upfront.
+- ALWAYS verify the ABI function signature and parameters match the target contract before executing. Incorrect signatures will revert and waste gas.
+- ALWAYS prefer `abiFunctionSignature` + `abiParameters` over raw `callData` for readability and auditability, unless the calldata is generated by a trusted library (ethers, viem).
 
 ## Alternatives
 

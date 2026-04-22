@@ -35,3 +35,8 @@ Registers ciphertext with Circle and writes a recovery file to the provided path
 - Never commit `ENTITY_SECRET` or recovery files.
 - Store both in secure secret storage.
 - SDK methods that require ciphertext will handle generation/rotation for each request.
+
+## Reference Links
+
+- [Register Entity Secret](https://developers.circle.com/wallets/dev-controlled/register-entity-secret)
+- [Entity Secret Management](https://developers.circle.com/wallets/dev-controlled/entity-secret-management)

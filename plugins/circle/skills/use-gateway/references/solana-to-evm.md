@@ -1,35 +1,69 @@
-# Gateway Solana-to-EVM Transfers
+# Transfer Unified USDC from Solana to EVM
 
-Browser-wallet Solana -> EVM transfer flow:
-1. Sign Solana burn intent with wallet.signMessage
-2. Submit to Gateway API
-3. Switch to destination EVM chain
-4. Call gatewayMint on destination chain
+This example burns from Solana Devnet and mints on Arc Testnet. The same pattern applies to other supported Solana Gateway environments and EVM destination chains after substituting the correct config, contract addresses, domain IDs, and recipient address.
 
-**NOTE:** Some browser wallets such as Phantom reject payloads that are not strictly Solana transactions. This workflow has been found to work with Solflare.
+Canonical runnable references:
+- Transfer unified USDC balance: https://developers.circle.com/gateway/howtos/transfer-unified-usdc-balance.md
+- Unified balance EVM quickstart: https://developers.circle.com/gateway/quickstarts/unified-balance-evm.md
+- Unified balance Solana quickstart: https://developers.circle.com/gateway/quickstarts/unified-balance-solana.md
+- Arc crosschain USDC tutorial: https://docs.arc.network/arc/tutorials/access-usdc-crosschain.md
 
-```tsx
-import { Layout, blob, offset, struct, u32be } from "@solana/buffer-layout";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey } from "@solana/web3.js";
-import { useState } from "react";
-import { parseUnits, pad, type Hex } from "viem";
+## What this does
+
+This script:
+
+1. Builds a Solana Gateway burn intent
+2. Signs the encoded burn intent with the Solana wallet
+3. Submits the signed burn intent to the Gateway `/transfer` API
+4. Calls `gatewayMint(bytes,bytes)` on the destination EVM chain
+5. Waits for the mint transaction receipt
+
+## Runnable example
+
+```ts
+import { randomBytes, sign } from "node:crypto";
+import { Buffer } from "buffer";
+
 import {
-  useConnection,
-  useChainId,
-  useSwitchChain,
-  useWriteContract,
-  useWaitForTransactionReceipt,
-} from "wagmi";
-
+  Layout,
+  blob,
+  offset,
+  struct,
+  u32be,
+} from "@solana/buffer-layout";
 import {
-  type ChainConfig,
-  GATEWAY_CONFIG,
-  arcContracts,
-  solanaContracts,
-} from "./contract-addresses.js";
+  createPublicClient,
+  createWalletClient,
+  getContract,
+  http,
+  pad,
+  type Hex,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { arcTestnet } from "viem/chains";
 
-// Gateway Minter ABI - only the gatewayMint function we need
+const GATEWAY_API_URL = "https://gateway-api-testnet.circle.com/v1/transfer";
+
+const SOLANA_CONFIG = {
+  domain: 5,
+  gatewayWallet: "GATEwdfmYNELfp5wDmmR6noSr2vHnAfBPMm2PvCzX5vu",
+  usdc: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+};
+
+const DESTINATION_CHAIN = {
+  chain: arcTestnet,
+  domain: 26,
+  gatewayMinter: "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B",
+  usdc: "0x3600000000000000000000000000000000000000",
+};
+
+const TRANSFER_AMOUNT = 5_000_000n; // 5 USDC (6 decimals)
+// Confirm the appropriate maxFee for the selected chains and environment in the canonical Gateway docs.
+const MAX_FEE = 2_010000n;
+const MAX_UINT64 = 2n ** 64n - 1n;
+const TRANSFER_SPEC_MAGIC = 0xca85def7;
+const BURN_INTENT_MAGIC = 0x070afbc2;
+
 const gatewayMinterAbi = [
   {
     type: "function",
@@ -43,33 +77,17 @@ const gatewayMinterAbi = [
   },
 ] as const;
 
-const TRANSFER_SPEC_MAGIC = 0xca85def7;
-const BURN_INTENT_MAGIC = 0x070afbc2;
-const MAX_UINT64 = 2n ** 64n - 1n;
-const MAX_FEE = 2_010000n;
-
-type TransferStep = "idle" | "signing" | "switching" | "minting" | "success";
-type NetworkType = "mainnet" | "testnet";
-const NETWORK = "testnet" as NetworkType;
-const DEFAULT_TRANSFER_AMOUNT_USDC = "1";
-
-interface SolBurnIntentInput {
-  destinationChainConfig: ChainConfig;
-  transferAmountUsdc: string;
-  recipientAddress?: Hex;
-}
-
-class PublicKeyLayout extends Layout<PublicKey> {
+class PublicKeyLayout extends Layout<Buffer> {
   constructor(property: string) {
     super(32, property);
   }
 
-  decode(buffer: Buffer, byteOffset = 0): PublicKey {
-    return new PublicKey(buffer.subarray(byteOffset, byteOffset + 32));
+  decode(buffer: Buffer, byteOffset = 0): Buffer {
+    return buffer.subarray(byteOffset, byteOffset + 32);
   }
 
-  encode(source: PublicKey, buffer: Buffer, byteOffset = 0): number {
-    source.toBuffer().copy(buffer, byteOffset);
+  encode(source: Buffer, buffer: Buffer, byteOffset = 0): number {
+    source.copy(buffer, byteOffset);
     return 32;
   }
 }
@@ -117,29 +135,40 @@ const BurnIntentLayout = struct([
       blob(32, "salt"),
       u32be("hookDataLength"),
       blob(offset(u32be(), -4), "hookData"),
-    ] as any,
-    "spec"
+    ] as never,
+    "spec",
   ),
-] as any);
+] as never);
 
-function randomHex32(): Hex {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return (`0x${Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")}`) as Hex;
+if (!process.env.SOLANA_PRIVATE_KEYPAIR) {
+  throw new Error("SOLANA_PRIVATE_KEYPAIR not set");
 }
 
-function solanaAddressToBytes32(address: string): Hex {
-  return (`0x${new PublicKey(address).toBuffer().toString("hex")}`) as Hex;
+if (!process.env.EVM_PRIVATE_KEY) {
+  throw new Error("EVM_PRIVATE_KEY not set");
+}
+
+const solanaSecretKey = Uint8Array.from(
+  JSON.parse(process.env.SOLANA_PRIVATE_KEYPAIR),
+);
+const evmAccount = privateKeyToAccount(
+  process.env.EVM_PRIVATE_KEY as `0x${string}`,
+);
+
+function randomHex32(): Hex {
+  return `0x${randomBytes(32).toString("hex")}` as Hex;
+}
+
+function solanaAddressToBytes32(addressBytes: Uint8Array): Hex {
+  return `0x${Buffer.from(addressBytes).toString("hex")}` as Hex;
 }
 
 function evmAddressToBytes32(address: Hex): Hex {
-  return pad(address.toLowerCase() as Hex, { size: 32 });
+  return pad(address.toLowerCase(), { size: 32 });
 }
 
-function hexToPublicKey(address: Hex): PublicKey {
-  return new PublicKey(Buffer.from(address.slice(2), "hex"));
+function hexToSolanaBuffer(address: Hex): Buffer {
+  return Buffer.from(address.slice(2), "hex");
 }
 
 function encodeSolanaBurnIntent(burnIntent: {
@@ -173,14 +202,14 @@ function encodeSolanaBurnIntent(burnIntent: {
       version: burnIntent.spec.version,
       sourceDomain: burnIntent.spec.sourceDomain,
       destinationDomain: burnIntent.spec.destinationDomain,
-      sourceContract: hexToPublicKey(burnIntent.spec.sourceContract),
-      destinationContract: hexToPublicKey(burnIntent.spec.destinationContract),
-      sourceToken: hexToPublicKey(burnIntent.spec.sourceToken),
-      destinationToken: hexToPublicKey(burnIntent.spec.destinationToken),
-      sourceDepositor: hexToPublicKey(burnIntent.spec.sourceDepositor),
-      destinationRecipient: hexToPublicKey(burnIntent.spec.destinationRecipient),
-      sourceSigner: hexToPublicKey(burnIntent.spec.sourceSigner),
-      destinationCaller: hexToPublicKey(burnIntent.spec.destinationCaller),
+      sourceContract: hexToSolanaBuffer(burnIntent.spec.sourceContract),
+      destinationContract: hexToSolanaBuffer(burnIntent.spec.destinationContract),
+      sourceToken: hexToSolanaBuffer(burnIntent.spec.sourceToken),
+      destinationToken: hexToSolanaBuffer(burnIntent.spec.destinationToken),
+      sourceDepositor: hexToSolanaBuffer(burnIntent.spec.sourceDepositor),
+      destinationRecipient: hexToSolanaBuffer(burnIntent.spec.destinationRecipient),
+      sourceSigner: hexToSolanaBuffer(burnIntent.spec.sourceSigner),
+      destinationCaller: hexToSolanaBuffer(burnIntent.spec.destinationCaller),
       value: burnIntent.spec.value,
       salt: Buffer.from(burnIntent.spec.salt.slice(2), "hex"),
       hookDataLength: hookData.length,
@@ -193,145 +222,128 @@ function encodeSolanaBurnIntent(burnIntent: {
   return out.subarray(0, bytesWritten);
 }
 
-/**
- * NOTE: Some browser wallets such as Phantom reject payloads
- * that are not strictly Solana transactions. This workflow has
- * been found to work with Solflare.
- * See https://solana.stackexchange.com/questions/10050/i-am-using-phantom-wallet-and-trying-to-sign-typed-data
- */
-async function signSolanaBurnIntentWithWallet(
-  signMessage: (message: Uint8Array) => Promise<Uint8Array>,
-  encodedBurnIntent: Uint8Array
-): Promise<Hex> {
+function signSolanaBurnIntent(secretKey: Uint8Array, encodedBurnIntent: Uint8Array): Hex {
   const prefixed = new Uint8Array(16 + encodedBurnIntent.length);
   prefixed.set([0xff], 0);
   prefixed.set(encodedBurnIntent, 16);
 
-  try {
-    const signature = await signMessage(prefixed);
-    return (`0x${Array.from(signature)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")}`) as Hex;
-  } catch (error) {
-    console.warn(`
-      This wallet does not support signing transactions that aren't strictly Solana t
-      ransactions. Try another wallet such as Solflare.`
-      , error);
-    throw error;
-  }
-}
+  const privateKey = Buffer.concat([
+    Buffer.from(secretKey.slice(0, 32)),
+    Buffer.from(secretKey.slice(32, 64)),
+  ]);
 
-/**
- * Browser-wallet Solana -> EVM transfer:
- * 1) Sign Solana burn intent with wallet.signMessage
- * 2) Submit to Gateway API
- * 3) Switch to destination EVM chain
- * 4) Call gatewayMint on destination chain
- */
-export default function TransferGatewayBalanceSolEvm() {
-  const { address: evmAddress } = useConnection();
-  const chainId = useChainId();
-  const { mutateAsync: switchChain } = useSwitchChain();
-  const { publicKey: solanaPublicKey, signMessage } = useWallet();
-
-  const [step, setStep] = useState<TransferStep>("idle");
-  const [error, setError] = useState<string | null>(null);
-
-  const { mutate: mint, data: mintHash } = useWriteContract();
-  const { isLoading: isMinting, isSuccess: mintSuccess } = useWaitForTransactionReceipt({
-    hash: mintHash,
+  const signature = sign(null, Buffer.from(prefixed), {
+    key: Buffer.concat([
+      Buffer.from("302e020100300506032b657004220420", "hex"),
+      privateKey.subarray(0, 32),
+    ]),
+    dsaEncoding: "ieee-p1363",
   });
 
-  const handleTransfer = async (
-    input: SolBurnIntentInput,
-    network: NetworkType = NETWORK
-  ) => {
-    if (!solanaPublicKey || !signMessage || !evmAddress) return;
-    const destChain = input.destinationChainConfig[network];
-    if (!destChain) return;
+  return `0x${signature.toString("hex")}` as Hex;
+}
 
-    try {
-      setError(null);
-      setStep("signing");
+async function main() {
+  const solanaPublicKey = solanaSecretKey.slice(32, 64);
+  const recipient = evmAccount.address;
+  const sourceGatewayWalletBytes = solanaAddressToBytes32(
+    Buffer.from(new PublicKey(SOLANA_CONFIG.gatewayWallet).toBytes()),
+  );
+  const sourceUsdcBytes = solanaAddressToBytes32(
+    Buffer.from(new PublicKey(SOLANA_CONFIG.usdc).toBytes()),
+  );
 
-      const recipient = (input.recipientAddress ?? evmAddress) as Hex;
-      const transferAmount = parseUnits(input.transferAmountUsdc, 6);
-
-      const burnIntent = {
-        maxBlockHeight: MAX_UINT64,
-        maxFee: MAX_FEE,
-        spec: {
-          version: 1,
-          sourceDomain: solanaContracts.domain,
-          destinationDomain: input.destinationChainConfig.domain,
-          sourceContract: solanaAddressToBytes32(solanaContracts.devnet!.GatewayWallet),
-          destinationContract: evmAddressToBytes32(destChain.GatewayMinter as Hex),
-          sourceToken: solanaAddressToBytes32(solanaContracts.devnet!.USDCAddress),
-          destinationToken: evmAddressToBytes32(destChain.USDCAddress as Hex),
-          sourceDepositor: solanaAddressToBytes32(solanaPublicKey.toBase58()),
-          destinationRecipient: evmAddressToBytes32(recipient),
-          sourceSigner: solanaAddressToBytes32(solanaPublicKey.toBase58()),
-          destinationCaller: evmAddressToBytes32(("0x0000000000000000000000000000000000000000") as Hex),
-          value: transferAmount,
-          salt: randomHex32(),
-          hookData: "0x" as Hex,
-        },
-      };
-
-      const encoded = encodeSolanaBurnIntent(burnIntent);
-      const burnSignature = await signSolanaBurnIntentWithWallet(signMessage, encoded);
-
-      const gatewayUrl =
-        network === "mainnet" ? GATEWAY_CONFIG.MAINNET_URL : GATEWAY_CONFIG.TESTNET_URL;
-      const response = await fetch(`${gatewayUrl}/transfer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          [{ burnIntent, signature: burnSignature }],
-          (_key, value) => (typeof value === "bigint" ? value.toString() : value)
-        ),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Gateway API request failed: ${response.status} ${errorText}`);
-      }
-
-      const { attestation, signature: apiSignature } = await response.json();
-
-      if (chainId !== destChain.ViemChain.id) {
-        setStep("switching");
-        await switchChain({ chainId: destChain.ViemChain.id });
-      }
-
-      setStep("minting");
-      mint({
-        address: destChain.GatewayMinter as Hex,
-        abi: gatewayMinterAbi,
-        functionName: "gatewayMint",
-        args: [attestation as Hex, apiSignature as Hex],
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Transfer failed");
-      setStep("idle");
-    }
+  const burnIntent = {
+    maxBlockHeight: MAX_UINT64,
+    maxFee: MAX_FEE,
+    spec: {
+      version: 1,
+      sourceDomain: SOLANA_CONFIG.domain,
+      destinationDomain: DESTINATION_CHAIN.domain,
+      sourceContract: sourceGatewayWalletBytes,
+      destinationContract: evmAddressToBytes32(
+        DESTINATION_CHAIN.gatewayMinter as `0x${string}`,
+      ),
+      sourceToken: sourceUsdcBytes,
+      destinationToken: evmAddressToBytes32(
+        DESTINATION_CHAIN.usdc as `0x${string}`,
+      ),
+      sourceDepositor: solanaAddressToBytes32(solanaPublicKey),
+      destinationRecipient: evmAddressToBytes32(recipient),
+      sourceSigner: solanaAddressToBytes32(solanaPublicKey),
+      destinationCaller: evmAddressToBytes32(
+        "0x0000000000000000000000000000000000000000",
+      ),
+      value: TRANSFER_AMOUNT,
+      salt: randomHex32(),
+      hookData: "0x" as Hex,
+    },
   };
 
-  if (step === "minting" && mintSuccess && !isMinting && mintHash) {
-    setStep("success");
-    setTimeout(() => {
-      setStep("idle");
-    }, 3000);
+  const encoded = encodeSolanaBurnIntent(burnIntent);
+  const burnSignature = signSolanaBurnIntent(solanaSecretKey, encoded);
+
+  const transferResponse = await fetch(GATEWAY_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(
+      [
+        {
+          burnIntent: {
+            ...burnIntent,
+            maxBlockHeight: burnIntent.maxBlockHeight.toString(),
+            maxFee: burnIntent.maxFee.toString(),
+            spec: {
+              ...burnIntent.spec,
+              value: burnIntent.spec.value.toString(),
+            },
+          },
+          signature: burnSignature,
+        },
+      ],
+    ),
+  });
+
+  if (!transferResponse.ok) {
+    throw new Error(
+      `Gateway API request failed: ${transferResponse.status} ${await transferResponse.text()}`,
+    );
   }
 
-  // Example input kept as a reusable config block instead of hardcoded inline UI.
-  const defaultTransferInput: SolBurnIntentInput = {
-    destinationChainConfig: arcContracts,
-    transferAmountUsdc: DEFAULT_TRANSFER_AMOUNT_USDC,
-    recipientAddress: evmAddress as Hex,
+  const { attestation, signature } = (await transferResponse.json()) as {
+    attestation: `0x${string}`;
+    signature: `0x${string}`;
   };
 
-  // Placeholder UI - business logic is in hooks and handlers above.
-  return <div />;
+  const publicClient = createPublicClient({
+    chain: DESTINATION_CHAIN.chain,
+    transport: http(),
+  });
+
+  const walletClient = createWalletClient({
+    account: evmAccount,
+    chain: DESTINATION_CHAIN.chain,
+    transport: http(),
+  });
+
+  const gatewayMinter = getContract({
+    address: DESTINATION_CHAIN.gatewayMinter,
+    abi: gatewayMinterAbi,
+    client: walletClient,
+  });
+
+  const mintTx = await gatewayMinter.write.gatewayMint([attestation, signature], {
+    account: evmAccount,
+  });
+  await publicClient.waitForTransactionReceipt({ hash: mintTx });
+
+  console.log(`Minted destination USDC to ${recipient}`);
+  console.log(`Mint transaction hash: ${mintTx}`);
 }
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
 ```
+

@@ -1,15 +1,25 @@
 ---
 name: bridge-stablecoin
-description: "Build USDC bridging with Circle Bridge Kit SDK and Crosschain Transfer Protocol (CCTP). Supports bridging USDC between EVM chains, between EVM chains and Solana, and between any two chains on Circle Wallets (i.e Developer-Controlled Wallets or Programmable wallets). Use when: bridge USDC, setting up Bridge Kit adapters (Viem, Ethers, Solana Kit, Circle Wallets), handling bridge events, collecting custom fees, configuring transfer speed, or using the Forwarding Service. Triggers on: Bridge Kit, bridge USDC, crosschain transfer, CCTP, move USDC between chains, @circle-fin/bridge-kit, adapter-viem, adapter-ethers, adapter-solana-kit, forwarding service, bridge routes."
+description: "Build USDC bridging with Circle App Kit or standalone Bridge Kit SDK and Crosschain Transfer Protocol (CCTP). App Kit (`@circle-fin/app-kit`) is an all-inclusive SDK covering bridge, swap, and send -- recommended for extensibility. Bridge Kit (`@circle-fin/bridge-kit`) is a standalone package for bridge-only use cases. Neither requires a kit key for bridge operations. Supports bridging USDC between EVM chains, between EVM chains and Solana, and between any two chains on Circle Wallets (i.e Developer-Controlled Wallets or Programmable wallets). Use when: bridge USDC, setting up Bridge Kit adapters (Viem, Ethers, Solana Kit, Circle Wallets), handling bridge events, collecting custom fees, configuring transfer speed, or using the Forwarding Service. Triggers on: Bridge Kit, App Kit, bridge USDC, crosschain transfer, CCTP, move USDC between chains, @circle-fin/bridge-kit, @circle-fin/app-kit, adapter-viem, adapter-ethers, adapter-solana-kit, forwarding service, bridge routes."
 ---
 
 ## Overview
 
-Crosschain Transfer Protocol (CCTP) is Circle's native protocol for burning USDC on one chain and minting it on another. Bridge Kit is a TypeScript SDK that orchestrates the full CCTP lifecycle -- approve, burn, attestation fetch, and mint -- in a single `kit.bridge()` call across EVM chains and Solana. Bridge Kit is the preferred way to integrate CCTP.
+Crosschain Transfer Protocol (CCTP) is Circle's native protocol for burning USDC on one chain and minting it on another. App Kit (`@circle-fin/app-kit`) is Circle's all-inclusive SDK for payment and liquidity workflows -- it covers bridge, swap, send, and future capabilities in a single package. Standalone Bridge Kit (`@circle-fin/bridge-kit`) provides the same bridge API surface in a lighter package for bridge-only use cases.
+
+Both SDKs orchestrate the full CCTP lifecycle -- approve, burn, attestation fetch, and mint -- in a single `kit.bridge()` call across EVM chains and Solana. **Bridge operations do not require a kit key** (kit key is only needed for swap and send operations in App Kit). **Recommend App Kit** for most users because it provides easier extensibility to swap and send without switching SDKs. Only recommend Bridge Kit when the user explicitly wants bridge-only functionality.
 
 ## Prerequisites / Setup
 
 ### Installation
+
+App Kit with Viem adapter (recommended):
+
+```bash
+npm install @circle-fin/app-kit @circle-fin/adapter-viem-v2
+```
+
+Bridge Kit standalone with Viem adapter:
 
 ```bash
 npm install @circle-fin/bridge-kit @circle-fin/adapter-viem-v2
@@ -39,7 +49,19 @@ EVM_WALLET_ADDRESS=       # Developer-controlled EVM wallet address
 SOLANA_WALLET_ADDRESS=    # Developer-controlled Solana wallet address
 ```
 
+No `KIT_KEY` is needed for bridge operations. A kit key is only required if you also use swap or send features via App Kit.
+
 ### SDK Initialization
+
+**App Kit** (recommended):
+
+```ts
+import { AppKit } from "@circle-fin/app-kit";
+
+const kit = new AppKit();
+```
+
+**Bridge Kit** (standalone):
 
 ```ts
 import { BridgeKit } from "@circle-fin/bridge-kit";
@@ -47,21 +69,42 @@ import { BridgeKit } from "@circle-fin/bridge-kit";
 const kit = new BridgeKit();
 ```
 
+## Decision Guide
+
+ALWAYS walk through these questions with the user before writing any code. Do not skip steps or assume answers.
+
+### SDK Choice
+
+**Question 1 -- Will you need swap or send functionality in the future?**
+- Yes, or unsure -> **App Kit** (recommended) -- single SDK covers bridge + swap + send, easier to extend later
+- No, bridge-only and will never need swap or send -> **Bridge Kit** -- standalone, lighter package for bridge-only use cases
+
+### Wallet / Adapter Choice
+
+**Question 2 -- How do you manage your wallet/keys?**
+- Managing your own private key (self-custodied, stored in env var or secrets manager) -> Question 3
+- Using Circle developer-controlled wallets (Circle manages key storage and signing) -> Use Circle Wallets adapter. READ `references/adapter-circle-wallets.md`
+- Using browser wallets (wagmi, ConnectKit, RainbowKit) -> Use wagmi adapter. READ `references/adapter-wagmi.md`
+
+**Question 3 -- Which chains are you bridging between?**
+- EVM-to-EVM or EVM-to-Solana -> Use Viem and/or Solana Kit adapters. READ `references/adapter-private-key.md`
+
 ## Core Concepts
 
 - **CCTP steps**: Every bridge transfer executes four sequential steps -- `approve` (ERC-20 allowance), `burn` (destroy USDC on source chain), `fetchAttestation` (wait for Circle to sign the burn proof), and `mint` (create USDC on destination chain).
-- **Adapters**: Bridge Kit uses adapter objects to abstract wallet/signer differences. Each ecosystem has its own adapter factory (`createViemAdapterFromPrivateKey`, `createSolanaKitAdapterFromPrivateKey`, `createCircleWalletsAdapter`). The same adapter instance can serve as both source and destination when bridging within the same ecosystem.
-- **Forwarding Service**: When `useForwarder: true` is set on the destination, Circle's infrastructure handles attestation fetching and mint submission. This removes the need for a destination wallet or polling loop. There is a per-transfer fee (1.25 USDC for Ethereum, 0.20 USDC for all other chains).
+- **Adapters**: Both App Kit and Bridge Kit use adapter objects to abstract wallet/signer differences. Each ecosystem has its own adapter factory (`createViemAdapterFromPrivateKey`, `createSolanaKitAdapterFromPrivateKey`, `createCircleWalletsAdapter`). The same adapter instance can serve as both source and destination when bridging within the same ecosystem.
+- **Forwarding Service**: When `useForwarder: true` is set on the destination, Circle's infrastructure handles attestation fetching and mint submission. This removes the need for a destination wallet or polling loop. There is a per-transfer fee that varies by route (see below).
 - **Transfer speed**: CCTP fast mode (default) completes in ~8-20 seconds. Standard mode takes ~15-19 minutes.
-- **Chain identifiers**: Bridge Kit uses string chain names (e.g., `"Arc_Testnet"`, `"Base_Sepolia"`, `"Solana_Devnet"`), not numeric chain IDs, in the `kit.bridge()` call.
+- **Chain identifiers**: Both SDKs use string chain names (e.g., `"Arc_Testnet"`, `"Base_Sepolia"`, `"Solana_Devnet"`), not numeric chain IDs, in the `kit.bridge()` call.
+- **No kit key for bridge**: Bridge operations do not require a kit key with either SDK. A kit key is only needed for swap and send operations in App Kit.
 
 ## Implementation Patterns
 
 READ the corresponding reference based on the user's request:
 
-- `references/adapter-private-key.md` -- EVM-to-EVM and EVM-to-Solana bridging with private key adapters (Viem + Solana Kit)
-- `references/adapter-circle-wallets.md` -- Bridging with Circle developer-controlled wallets (any chain to any chain)
-- `references/adapter-wagmi.md` -- Browser wallet integration using wagmi (ConnectKit, RainbowKit, etc.)
+- `references/adapter-private-key.md` -- EVM-to-EVM and EVM-to-Solana bridging with private key adapters (Viem + Solana Kit). Includes App Kit and Bridge Kit examples.
+- `references/adapter-circle-wallets.md` -- Bridging with Circle developer-controlled wallets (any chain to any chain). Includes App Kit and Bridge Kit examples.
+- `references/adapter-wagmi.md` -- Browser wallet integration using wagmi (ConnectKit, RainbowKit, etc.). Includes App Kit and Bridge Kit examples.
 
 ### Sample Response from kit.bridge()
 
@@ -154,9 +197,7 @@ const result = await kit.bridge({
 });
 ```
 
-Forwarding Service fee per destination chain:
-- Ethereum: 1.25 USDC
-- All other chains: 0.20 USDC
+Forwarding Service fees are dynamic and fetched from the IRIS API at runtime. The SDK handles this automatically. Fees vary by route -- check the [Forwarding Service](https://developers.circle.com/cctp/concepts/forwarding-service) for the latest fee schedule.
 
 ### Event Handling
 
@@ -186,7 +227,7 @@ kit.on("*", (payload) => {
 
 ## Error Handling & Recovery
 
-Bridge Kit has two error categories:
+Both App Kit and Bridge Kit have two error categories:
 - **Hard errors** throw exceptions (validation, config, auth) -- catch in try/catch.
 - **Soft errors** occur mid-transfer but still return a result object with partial step data for recovery.
 
@@ -243,27 +284,33 @@ if (result.state === "error") {
 
 - NEVER hardcode, commit, or log secrets (private keys, API keys, entity secrets). ALWAYS use environment variables or a secrets manager. Add `.gitignore` entries for `.env*` and secret files when scaffolding.
 - NEVER pass private keys as plain-text CLI flags. Prefer encrypted keystores or interactive import.
-- ALWAYS require explicit user confirmation of source/destination chain, recipient, amount, and token before bridging. NEVER auto-execute fund movements on mainnet.
+- ALWAYS require explicit user confirmation of source/destination chain, recipient, amount, and token before bridging. MUST receive confirmation for funding movements on mainnet.
 - ALWAYS warn when targeting mainnet or exceeding safety thresholds (e.g., >100 USDC).
 - ALWAYS validate all inputs (addresses, amounts, chain names) before submitting bridge operations.
 - ALWAYS warn before interacting with unaudited or unknown contracts.
 
 ### Best Practices
 
+- ALWAYS walk the user through the Decision Guide questions before writing any code. Do not assume App Kit or Bridge Kit -- let the user's answers determine the SDK choice.
 - ALWAYS read the correct reference files before implementing.
 - ALWAYS switch the wallet to the source chain before calling `kit.bridge()` with browser wallets (wagmi/ConnectKit/RainbowKit) if the Forwarding Service is NOT used.
 - ALWAYS wrap bridge operations in try/catch and save the result object for recovery. Check `result.steps` before retrying to see which steps completed.
 - ALWAYS use exponential backoff for retry logic in production.
-- ALWAYS use Bridge Kit string chain names (e.g., `"Arc_Testnet"`, `"Base_Sepolia"`), not numeric chain IDs.
+- ALWAYS use string chain names (e.g., `"Arc_Testnet"`, `"Base_Sepolia"`), not numeric chain IDs.
 - ALWAYS default to testnet. Require explicit user confirmation before targeting mainnet.
 
 ## Reference Links
 
-- [Circle Bridge Kit SDK](https://developers.circle.com/bridge-kit)
+- [Circle App Kit SDK](https://docs.arc.network/app-kit)
+- [Circle Bridge Kit SDK](https://docs.arc.network/app-kit/bridge)
 - [CCTP Documentation](https://developers.circle.com/cctp)
 - [Circle Developer Docs](https://developers.circle.com/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.
 
 ## Alternatives
+
+Trigger the `swap-tokens` skill instead when:
+- You need to swap tokens (e.g., USDT to USDC) on the same chain.
+- You need to move non-USDC tokens across chains. The swap-tokens skill shows how to combine separate swap and bridge calls (swap tokenA to USDC, bridge USDC, swap USDC to tokenB).
 
 Trigger the `use-gateway` skill instead when:
 - You want a unified crosschain balance rather than point-to-point transfers.

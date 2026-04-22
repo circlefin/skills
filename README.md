@@ -81,7 +81,7 @@ npx skills update
 Skills are designed around patterns with infrequent changes, so they remain useful even if slightly behind. For details that change often (contract addresses, SDK signatures), use [Circle MCP](#circle-mcp) which updates over the air.
 
 ## Contributing
-We accept issues openly — bug reports, skill requests, and feedback are welcome. We review community suggestions and use them to guide what we build, but don't guarantee merging external contributions.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## FAQ
 

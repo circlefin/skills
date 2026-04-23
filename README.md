@@ -38,6 +38,7 @@ npx skills add circlefin/skills
 | [`use-modular-wallets`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-modular-wallets/SKILL.md) | Smart contract wallets with passkey authentication, gasless transactions, and modular architecture. Supports ERC-4337 account abstraction. |
 | [`use-smart-contract-platform`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-smart-contract-platform/SKILL.md) | Deploy, import, interact with, and monitor smart contracts using Circle's Smart Contract Platform. Supports bytecode deployment, template contracts (ERC-20/721/1155), ABI-based read/write calls, and event monitoring. |
 | [`use-user-controlled-wallets`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-user-controlled-wallets/SKILL.md) | Embedded wallets where users control their own assets. Supports Web2-like login (Google, Facebook, Apple, email OTP, PIN) without seed phrases. |
+| [`swap-tokens`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/swap-tokens/SKILL.md) | Build token swap functionality with Circle App Kit or standalone Swap Kit. Supports same-chain swaps, slippage configuration, swap fee collection, and cross-chain token movement by combining swap and bridge calls. |
 
 ## Circle MCP
 Skills contain stable patterns (architecture decisions, UX guidance, common mistakes). For ground-truth details that change frequently (e.g., SDK method signatures, contract addresses, chain IDs) use Circle's MCP server alongside skills.

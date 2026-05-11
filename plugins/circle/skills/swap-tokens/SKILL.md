@@ -1,6 +1,6 @@
 ---
 name: swap-tokens
-description: "Build token swap functionality with Circle App Kit or standalone Swap Kit SDKs. App Kit (`@circle-fin/app-kit`) is an all-inclusive SDK covering swap, bridge, and send -- recommended for extensibility. Swap Kit (`@circle-fin/swap-kit`) is a standalone package for swap-only use cases. Both require a kit key and run server-side only. Swap is mainnet-only (no testnet support). Supports same-chain swaps. For cross-chain token movement, combine separate swap and bridge calls using App Kit (swap tokenA to USDC, bridge USDC, swap USDC to tokenB). Use when: swapping tokens, exchanging stablecoins, converting USDT to USDC, setting up swap adapters (Viem, Solana Kit, Circle Wallets), estimating swap rates, configuring slippage or stop limits, collecting custom swap fees, or combining swap and bridge for cross-chain token movement. Triggers on: swap tokens, token exchange, App Kit, Swap Kit, @circle-fin/app-kit, @circle-fin/swap-kit, USDT to USDC, swap USDC, swap stablecoin, estimateSwap, slippage, stop limit, kit key, swap fees."
+description: "Build token swap functionality with Circle App Kit or standalone Swap Kit SDKs. App Kit (@circle-fin/app-kit) is an all-inclusive SDK covering swap, bridge, and send. Swap Kit (@circle-fin/swap-kit) is standalone for swap-only use cases. Both require a kit key and run server-side only. Swap runs on mainnet chains and on Arc Testnet. Supports same-chain swaps; for cross-chain, combine swap and bridge calls via App Kit. Use when: swapping tokens, exchanging stablecoins, converting USDT to USDC, setting up swap adapters, estimating swap rates, configuring slippage or stop limits, collecting custom swap fees, or combining swap and bridge for cross-chain token movement. Triggers: swap tokens, token exchange, App Kit, Swap Kit, @circle-fin/app-kit, @circle-fin/swap-kit, USDT to USDC, swap USDC, estimateSwap, slippage, stop limit, kit key, swap fees."
 ---
 
 ## Overview
@@ -115,9 +115,8 @@ If the user needs cross-chain token movement (swap + bridge pattern), also READ 
 ## Core Concepts
 
 - **Swap** executes on a single chain -- exchange one token for another (e.g., USDT to USDC on Ethereum).
-- **Swap is mainnet-only** -- there is no testnet support for swap operations. All swaps involve real funds.
 - **Third-party aggregator routing** -- Swap operations are routed through third-party DEX aggregators. The current aggregator is **LiFi**. The aggregator used may vary by route and is subject to change. Users are subject to the applicable aggregator's terms of service when executing swaps.
-- **Chain identifiers** are strings (e.g., `"Ethereum"`, `"Base"`, `"Solana"`), not numeric chain IDs.
+- **Chain identifiers** are strings (e.g., `"Ethereum"`, `"Base"`, `"Solana"`, `"Arc_Testnet"`), not numeric chain IDs.
 
 ### Supported Chains and Tokens
 
@@ -126,7 +125,7 @@ When building apps that present chain or token selections to users, ALWAYS use t
 **Supported mainnet chains** (use these exact string identifiers in the SDK):
 
 ```ts
-const SUPPORTED_CHAINS = [
+const SUPPORTED_MAINNET_CHAINS = [
   "Arbitrum",
   "Avalanche",
   "Base",
@@ -144,6 +143,14 @@ const SUPPORTED_CHAINS = [
   "Unichain",
   "World_Chain",
   "XDC",
+] as const;
+```
+
+**Supported testnet chains** (use these exact string identifiers in the SDK):
+
+```ts
+const SUPPORTED_TESTNET_CHAINS = [
+  "Arc_Testnet",
 ] as const;
 ```
 
@@ -333,7 +340,7 @@ try {
 - NEVER read or display the values of private keys, API keys, entity secrets, or kit keys in conversation output. If a user shares these values in conversation, warn them immediately and advise key rotation.
 - NEVER pass private keys as plain-text CLI flags. Prefer encrypted keystores or interactive import.
 - ALWAYS require explicit user confirmation of chain, tokens, and amount before swapping. NEVER auto-execute swaps.
-- **ALWAYS warn that swap is mainnet-only and involves real funds.** Suggest starting with small test amounts.
+- **ALWAYS warn that mainnet swaps move real funds.** Suggest starting with small test amounts.
 - ALWAYS warn when amounts exceed safety thresholds (e.g., >100 USD equivalent).
 - ALWAYS validate all inputs (addresses, amounts, chain names, token symbols) before submitting.
 - ALWAYS warn before interacting with unaudited or unknown contracts.

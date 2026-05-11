@@ -1,0 +1,46 @@
+{
+  "name": "circle",
+  "version": "1.0.0",
+  "description": "Ship stablecoin apps faster with Circle skills for USDC payments, cross-chain transfers, wallets, and smart contracts.",
+  "author": {
+    "name": "Circle Technology Services",
+    "url": "https://www.circle.com"
+  },
+  "homepage": "https://developers.circle.com",
+  "repository": "https://github.com/circlefin/skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "usdc",
+    "stablecoin",
+    "circle",
+    "cctp",
+    "wallets",
+    "web3",
+    "payments"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Circle",
+    "shortDescription": "Build stablecoin apps with Circle",
+    "longDescription": "Use Circle skills to build with USDC payments, cross-chain transfers, Circle wallets, Gateway, Arc, and smart contracts.",
+    "developerName": "Circle Technology Services",
+    "category": "Engineering",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "websiteURL": "https://developers.circle.com",
+    "privacyPolicyURL": "https://www.circle.com/legal/privacy-policy",
+    "termsOfServiceURL": "https://console.circle.com/legal/developer-terms",
+    "defaultPrompt": [
+      "Build a USDC transfer flow",
+      "Bridge USDC between chains with CCTP",
+      "Swap tokens with Circle App Kit",
+      "Choose the right Circle wallet for my use case"
+    ],
+    "composerIcon": "./assets/logo-square.svg",
+    "logo": "./assets/logo-square.svg",
+    "screenshots": []
+  }
+}

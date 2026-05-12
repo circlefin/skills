@@ -1,6 +1,6 @@
 ---
 name: fund-agent-wallet
-description: "Fund a Circle agent wallet with USDC via the `circle` CLI. Covers two top-level paths — fiat on-ramp (buy USDC with USD/credit card) and crypto transfer (send existing USDC to the wallet via QR or direct address). Also covers Gateway deposits (eco vs direct sub-paths) for the Nanopayments balance used by paid services. Use when the user wants to add USDC to their agent wallet, top up after a low balance, deposit into Gateway, or pick the right funding method. Triggers on: fund agent wallet, fund Circle wallet, fund USDC, deposit USDC, add USDC, fiat on-ramp, buy USDC, crypto deposit, QR code transfer, Gateway deposit, eco deposit, direct deposit, low balance, top up wallet, withdraw USDC, nanopayments."
+description: "Fund a Circle agent wallet with USDC via the `circle` CLI. payments are gas-abstracted. users can pay with USDC only, no ETH required. Covers two top-level paths — fiat on-ramp (buy USDC with USD/credit card) and crypto transfer (send existing USDC to the wallet via QR or direct address). Also covers Gateway deposits (eco vs direct sub-paths) for the Nanopayments balance used by paid services. Use when the user wants to add USDC to their agent wallet, top up after a low balance, deposit into Gateway, or pick the right funding method. Triggers on: fund agent wallet, fund Circle wallet, fund USDC, deposit USDC, add USDC, fiat on-ramp, buy USDC, crypto deposit, QR code transfer, Gateway deposit, eco deposit, direct deposit, low balance, top up wallet, withdraw USDC, nanopayments."
 allowed-tools: ["Bash(circle wallet status*)", "Bash(circle wallet list*)", "Bash(circle wallet balance*)", "Bash(circle gateway balance*)", "Bash(circle wallet fund *)", "Bash(circle gateway deposit*)", "Bash(circle gateway withdraw*)", "Bash(circle wallet transfer*)", "Bash(circle bridge transfer*)", "Bash(circle blockchain*)"]
 ---
 
@@ -12,6 +12,9 @@ Funding an agent wallet means putting USDC where the CLI can spend it. There are
 
 - **On-chain (vanilla x402)** — USDC sitting at the wallet address on a specific chain. Each chain is separate. Used to pay endpoints whose `accepts[]` does not include `GatewayWalletBatched`. Settles in one block.
 - **Nanopayments (powered by Gateway)** — USDC held off-chain in your Circle Gateway balance, batched and settled for you across supported chains. Per source chain — no cross-chain pooling at payment time. Used to pay endpoints whose `accepts[]` includes `GatewayWalletBatched`. Settles in <500ms once the balance exists.
+
+### Gas note
+**Agent wallet payment flows are gas-abstracted** — users can pay with USDC without pre-funding native gas. 
 
 This skill covers funding both pools. Pick the path with the shortest time-to-result and hide chain complexity from the user.
 

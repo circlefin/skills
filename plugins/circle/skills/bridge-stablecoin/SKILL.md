@@ -201,29 +201,33 @@ Forwarding Service fees are dynamic and fetched from the IRIS API at runtime. Th
 
 ### Event Handling
 
-Subscribe to individual CCTP steps or all events at once. Multiple callbacks per event are supported.
+Subscribe to individual CCTP steps or all events at once. Multiple callbacks per event are supported. `payload.values` is inferred precisely from the event key, so no type assertions are needed.
 
 ```ts
-kit.on("approve", (payload) => {
+kit.on("bridge.approve", (payload) => {
   console.log("Approval completed:", payload.values.txHash);
 });
 
-kit.on("burn", (payload) => {
+kit.on("bridge.burn", (payload) => {
   console.log("Burn completed:", payload.values.txHash);
 });
 
-kit.on("fetchAttestation", (payload) => {
-  console.log("Attestation completed:", payload.values.data.attestation);
+kit.on("bridge.fetchAttestation", (payload) => {
+  if (payload.values.state === "success") {
+    console.log("Attestation:", payload.values.data.attestation);
+  }
 });
 
-kit.on("mint", (payload) => {
+kit.on("bridge.mint", (payload) => {
   console.log("Mint completed:", payload.values.txHash);
 });
 
 kit.on("*", (payload) => {
-  console.log("Event received:", payload);
+  console.log("Event:", payload.action, payload);
 });
 ```
+
+**Bridge Kit only:** drop the `bridge.` prefix — the events are `"approve"`, `"burn"`, `"fetchAttestation"`, `"mint"`. The App Kit `bridge.*` namespacing only applies because App Kit's `kit.on()` also dispatches other namespaces (e.g. `unifiedBalance.*`) and filters bridge events by the `bridge.` prefix.
 
 ## Error Handling & Recovery
 
@@ -298,6 +302,7 @@ if (result.state === "error") {
 - ALWAYS use exponential backoff for retry logic in production.
 - ALWAYS use string chain names (e.g., `"Arc_Testnet"`, `"Base_Sepolia"`), not numeric chain IDs.
 - ALWAYS default to testnet. Require explicit user confirmation before targeting mainnet.
+- ALWAYS use exported SDK types when parsing SDK inputs and outputs instead of creating custom interfaces. This minimizes type errors.
 
 ## Reference Links
 

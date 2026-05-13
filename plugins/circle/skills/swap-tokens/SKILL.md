@@ -358,6 +358,7 @@ try {
 - ALWAYS use App Kit string chain names (e.g., `"Ethereum"`, `"Base"`), not numeric chain IDs.
 - ALWAYS handle fee recipient addresses on the same network as swap origin.
 - For cross-chain token movement (swap + bridge pattern), ALWAYS use App Kit since it provides both `swap()` and `bridge()` methods. Swap Kit does not include bridge capability.
+- ALWAYS use exported SDK types instead of creating custom interfaces.
 
 ## Reference Links
 - [Circle App Kit SDK](https://docs.arc.network/app-kit)

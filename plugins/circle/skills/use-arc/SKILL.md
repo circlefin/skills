@@ -113,6 +113,114 @@ Use CCTP to bridge USDC from other chains. Arc's CCTP domain is `26`. See the `b
 - ALWAYS use 18 decimals for native gas amounts and 6 decimals for ERC-20 USDC amounts.
 - NEVER target mainnet -- Arc is testnet only.
 
+## Common Pitfalls
+
+Empirical gotchas encountered when building production-grade contracts and clients against Arc Testnet. Each pitfall pairs the wrong-by-default pattern with the working pattern.
+
+### 1. Native USDC vs ERC-20 USDC decimals
+
+The single most common bug. Agents default to `parseUnits(amount, 6)` because USDC is 6 decimals on every other chain. On Arc, that's correct ONLY when interacting with the ERC-20 view of USDC at `0x3600000000000000000000000000000000000000`. For **native gas payments** (`msg.value`, `payable` calldata, `address.balance`), USDC uses **18 decimals** like ETH on Ethereum.
+
+```typescript
+// WRONG — deposits 0.000000000001 USDC (effectively zero)
+await walletClient.writeContract({
+  address: VAULT,
+  abi: VAULT_ABI,
+  functionName: "deposit",
+  args: [vaultId],
+  value: parseUnits("1", 6),  // ← treats it like ERC-20 USDC
+});
+
+// CORRECT — deposits exactly 1 USDC of native gas
+await walletClient.writeContract({
+  address: VAULT,
+  abi: VAULT_ABI,
+  functionName: "deposit",
+  args: [vaultId],
+  value: parseEther("1"),  // ← native gas = 18 decimals
+});
+```
+
+Symptom of the bug: transaction confirms, contract receives ~1 micro-USDC worth of wei, dust-amount branch triggers (often a revert with `ZeroAmount` / `BelowMinimum`, or silent success with 0 shares minted).
+
+Same rule for `nativeCurrency` in viem/wagmi chain definitions:
+
+```typescript
+// WRONG
+nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 6 }
+
+// CORRECT
+nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }
+```
+
+### 2. `eth_getLogs` is capped at 10,000 blocks per call
+
+Arc Testnet's RPC enforces a hard limit of 10,000 blocks per `eth_getLogs` request. Any query spanning more than that returns:
+
+```
+RPC error -32614: eth_getLogs is limited to a 10,000 range
+```
+
+Defaults are dangerous: a fresh `getLogs({ address, event, fromBlock: deployBlock, toBlock: "latest" })` will fail as soon as the chain is more than 10k blocks past deployment (~30 minutes at Arc's block time).
+
+Workaround pattern — chunk backward from `latest`:
+
+```typescript
+const CHUNK = 9_000n;  // stay safely under the 10k limit
+const latest = await client.getBlockNumber();
+const logs: Log[] = [];
+let to = latest;
+while (to >= DEPLOY_BLOCK) {
+  const from = to > CHUNK ? to - CHUNK : 0n;
+  const slice = await client.getLogs({
+    address: contractAddr,
+    event: targetEvent,
+    fromBlock: from < DEPLOY_BLOCK ? DEPLOY_BLOCK : from,
+    toBlock: to,
+  });
+  logs.push(...slice);
+  if (from <= DEPLOY_BLOCK) break;
+  to = from - 1n;
+}
+```
+
+### 3. `waitForTransactionReceipt` frequently times out
+
+Arc Testnet's RPC will accept the broadcast and queue the tx, but the receipt query path occasionally drops connection for 30-60s at a time. viem's default `waitForTransactionReceipt` times out before the receipt is queryable, even though the transaction has succeeded on chain.
+
+Treat receipt timeouts as **not-yet-confirmed**, not **failed**:
+
+```typescript
+const hash = await walletClient.writeContract({ ... });
+// Don't trust waitForTransactionReceipt's timeout — poll explicitly
+for (let i = 0; i < 30; i++) {
+  await new Promise(r => setTimeout(r, 6_000));
+  try {
+    const r = await publicClient.getTransactionReceipt({ hash });
+    if (r.status === "success") return r;
+    if (r.status === "reverted") throw new Error("Tx reverted");
+  } catch {
+    // "could not be found" → still pending, retry
+  }
+}
+throw new Error("Receipt timeout — check arcscan manually");
+```
+
+Pre-compute deterministic IDs on the client side when possible (e.g., a vault ID derivable from `keccak256(agent, vaultCount, chainId)`) so that even if `waitForTransactionReceipt` times out, downstream code has the ID it needs to continue.
+
+### 4. Avoid passing private keys as `--private-key` to long-running scripts
+
+`forge create --private-key $PRIVATE_KEY` is acceptable for one-shot local testing but leaks the key into the process arg list, which is readable by any other process on the machine via `/proc/<pid>/cmdline`. For testnet automation (e.g., a deploy script run in CI), prefer Foundry's keystore:
+
+```bash
+cast wallet import deployer --interactive    # one-time
+forge script script/Deploy.s.sol --account deployer --rpc-url $ARC_TESTNET_RPC_URL --broadcast
+```
+
+The `--account` flag prompts for the keystore password interactively and never exposes the raw key to argv.
+
+---
+
 ## Next Steps
 
 Arc is natively supported across Circle's product suite. Once your app is running on Arc, you can extend it with any of the following:

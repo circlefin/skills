@@ -55,6 +55,10 @@ Day 0        Lockup period (0–180 days)        Release
 A lockup of 0 means funds are available immediately — useful for low-risk
 merchant flows. Up to 180 days maximum (`MAX_LOCKUP_SECONDS`).
 
+> **Important:** `lockupSeconds[recipient]` defaults to `0` until the arbiter
+> calls `setLockupSeconds()`. The lockup must be configured **before** the
+> first payment to that recipient, or funds will be immediately withdrawable.
+
 ---
 
 ## Repository
@@ -112,6 +116,11 @@ forge create src/RefundProtocol.sol:RefundProtocol \
 
 ### 1. Basic payment with lockup
 
+> **Prerequisite:** The arbiter must call `setLockupSeconds()` for the
+> recipient **before** any payment is made. `lockupSeconds[to]` defaults to
+> `0`, so payments made before this step are immediately withdrawable.
+> See [Section 2](#2-arbiter-sets-lockup-period) for the arbiter setup.
+
 ```typescript
 import { createPublicClient, createWalletClient, http, parseUnits } from "viem";
 import { arcTestnet } from "viem/chains";
@@ -119,7 +128,6 @@ import { privateKeyToAccount } from "viem/accounts";
 
 const USDC = "0x3600000000000000000000000000000000000000" as const;
 const REFUND_PROTOCOL = "0xYOUR_DEPLOYED_CONTRACT" as const;
-const LOCKUP_SECONDS = 7 * 24 * 3600; // 7 days
 const AMOUNT = parseUnits("10.00", 6); // 10 USDC — always 6 decimals
 
 const publicClient = createPublicClient({ chain: arcTestnet, transport: http() });
@@ -167,7 +175,23 @@ const erc20Abi = [
     outputs: [{ name: "", type: "bool" }] },
 ] as const;
 
-// Step 1: Approve USDC spend
+// Step 1: Arbiter configures lockup for this recipient (run once per recipient)
+// Must be done BEFORE the first pay() — otherwise lockupSeconds[to] is 0
+// and funds are immediately withdrawable.
+const arbiterWallet = createWalletClient({
+  account: privateKeyToAccount(process.env.ARBITER_KEY as `0x${string}`),
+  chain: arcTestnet,
+  transport: http(),
+});
+const lockupHash = await arbiterWallet.writeContract({
+  address: REFUND_PROTOCOL,
+  abi: refundProtocolAbi,
+  functionName: "setLockupSeconds",
+  args: [recipientAddress, BigInt(7 * 24 * 3600)], // 7-day lockup
+});
+await publicClient.waitForTransactionReceipt({ hash: lockupHash });
+
+// Step 2: Approve USDC spend
 const approveHash = await payerWallet.writeContract({
   address: USDC,
   abi: erc20Abi,
@@ -176,14 +200,14 @@ const approveHash = await payerWallet.writeContract({
 });
 await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
-// Step 2: Get current nonce (this will be the payment ID)
+// Step 3: Get current nonce (this will be the payment ID)
 const paymentId = await publicClient.readContract({
   address: REFUND_PROTOCOL,
   abi: refundProtocolAbi,
   functionName: "nonce",
 });
 
-// Step 3: Pay — funds go into escrow
+// Step 4: Pay — funds go into escrow
 const payHash = await payerWallet.writeContract({
   address: REFUND_PROTOCOL,
   abi: refundProtocolAbi,
@@ -196,8 +220,17 @@ const payHash = await payerWallet.writeContract({
 });
 await publicClient.waitForTransactionReceipt({ hash: payHash });
 
+// Step 5: Read the actual release timestamp from the contract
+// (do not estimate — read the value recorded by pay() for correctness)
+const [, , releaseTimestamp] = await publicClient.readContract({
+  address: REFUND_PROTOCOL,
+  abi: refundProtocolAbi,
+  functionName: "payments",
+  args: [paymentId],
+});
+
 console.log(`Payment ID: ${paymentId}`);
-console.log(`Funds locked until: ${new Date((Date.now() / 1000 + LOCKUP_SECONDS) * 1000).toISOString()}`);
+console.log(`Funds locked until: ${new Date(Number(releaseTimestamp) * 1000).toISOString()}`);
 ```
 
 ### 2. Arbiter sets lockup period
@@ -273,52 +306,54 @@ const forceRefundHash = await arbiterWallet.writeContract({
 
 ### 6. Early withdrawal authorized by arbiter
 
+> ⚠️ **Security notice — do not use in production without reviewing the
+> upstream status.** The `refund-protocol` README currently has an active
+> Security Notice stating that `earlyWithdrawByArbiter()` contains an issue
+> that allows an arbiter to drain other users' payments. A fix is still in
+> development. Do not expose this function in a production system until the
+> upstream contract is patched and audited.
+>
+> The integration below is provided for reference only so you understand the
+> signing pattern. Gate it behind a feature flag and audit the contract fix
+> before enabling it.
+
 The arbiter can release funds before the lockup expires, with an optional
-fee. The recipient must sign the withdrawal terms (EIP-712).
+fee. The recipient must sign the withdrawal parameters.
+
+**Signing note:** The contract's `_hashEarlyWithdrawalInfo()` hashes the
+parameters with `abi.encode(...)` directly — it does **not** use EIP-712
+typed-data encoding. Using `signTypedData()` produces a different digest and
+the signature will not verify onchain. Use `encodeAbiParameters` + `keccak256`
++ `sign` to match the contract exactly.
 
 ```typescript
-import { signTypedData } from "viem/accounts";
+import { encodeAbiParameters, keccak256, parseUnits } from "viem";
+import { sign } from "viem/accounts";
 
-// Recipient signs the early withdrawal terms
-const domain = {
-  name: "MyApp Refund Protocol",
-  version: "1.0",
-  chainId: arcTestnet.id,
-  verifyingContract: REFUND_PROTOCOL,
-};
+const feeAmount = parseUnits("0.50", 6); // 0.50 USDC arbiter fee
+const expiry    = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
+const salt      = BigInt(Math.floor(Math.random() * 1e15));     // unique per call
 
-const types = {
-  EarlyWithdrawalByArbiter: [
-    { name: "paymentIDs",        type: "uint256[]" },
-    { name: "withdrawalAmounts", type: "uint256[]" },
-    { name: "feeAmount",         type: "uint256"   },
-    { name: "expiry",            type: "uint256"   },
-    { name: "salt",              type: "uint256"   },
-  ],
-};
+// Hash parameters exactly as _hashEarlyWithdrawalInfo() does in the contract:
+// keccak256(abi.encode(paymentIDs, withdrawalAmounts, feeAmount, expiry, salt))
+const hash = keccak256(
+  encodeAbiParameters(
+    [
+      { type: "uint256[]" },
+      { type: "uint256[]" },
+      { type: "uint256"   },
+      { type: "uint256"   },
+      { type: "uint256"   },
+    ],
+    [[paymentId], [AMOUNT], feeAmount, expiry, salt]
+  )
+);
 
-const expiry = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
-const salt   = BigInt(Math.floor(Math.random() * 1e15));
-
-const signature = await signTypedData({
+// Sign the raw keccak256 hash — no EIP-712 domain, no Ethereum prefix
+const { v, r, s } = await sign({
+  hash,
   privateKey: process.env.RECIPIENT_KEY as `0x${string}`,
-  domain,
-  types,
-  primaryType: "EarlyWithdrawalByArbiter",
-  message: {
-    paymentIDs:        [paymentId],
-    withdrawalAmounts: [AMOUNT],
-    feeAmount:         parseUnits("0.50", 6), // 0.50 USDC arbiter fee
-    expiry,
-    salt,
-  },
 });
-
-const { v, r, s } = {
-  v: parseInt(signature.slice(130, 132), 16),
-  r: signature.slice(0, 66) as `0x${string}`,
-  s: `0x${signature.slice(66, 130)}` as `0x${string}`,
-};
 
 // Arbiter executes early withdrawal with recipient's signature
 const earlyWithdrawAbi = [{
@@ -346,7 +381,7 @@ await arbiterWallet.writeContract({
   args: [
     [paymentId],
     [AMOUNT],
-    parseUnits("0.50", 6),
+    feeAmount,
     expiry,
     salt,
     recipientAddress,
@@ -380,8 +415,38 @@ await arbiterWallet.writeContract({
 ```
 
 When the arbiter covers a refund from its own balance, the recipient incurs
-a debt. The debt is automatically settled when the recipient next receives
-a payment via `pay()` or when `settleDebt()` is called manually.
+a debt. New payments via `pay()` increase the recipient's balance but do
+**not** settle the debt automatically — `pay()` does not call `_settleDebt`.
+Debt is only cleared when `settleDebt(recipient)` is called explicitly, or
+when the recipient calls `withdraw()`, which settles outstanding debt before
+releasing funds.
+
+```typescript
+const settleDebtAbi = [
+  { name: "settleDebt", type: "function", stateMutability: "nonpayable",
+    inputs: [{ name: "recipient", type: "address" }], outputs: [] },
+  { name: "debts", type: "function", stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }] },
+] as const;
+
+// Check outstanding debt before deciding whether to call settleDebt
+const debt = await publicClient.readContract({
+  address: REFUND_PROTOCOL,
+  abi: settleDebtAbi,
+  functionName: "debts",
+  args: [recipientAddress],
+});
+
+if (debt > 0n) {
+  await arbiterWallet.writeContract({
+    address: REFUND_PROTOCOL,
+    abi: settleDebtAbi,
+    functionName: "settleDebt",
+    args: [recipientAddress],
+  });
+}
+```
 
 ---
 
@@ -414,9 +479,9 @@ console.log("Can withdraw:", canWithdraw);
 |---|---|---|
 | Merchant wants to refund voluntarily | Recipient | `refundByRecipient()` |
 | Fraud detected, merchant unresponsive | Arbiter | `refundByArbiter()` |
-| Recipient needs funds early, agrees to fee | Arbiter + Recipient sig | `earlyWithdrawByArbiter()` |
+| Recipient needs funds early, agrees to fee | Arbiter + Recipient sig | `earlyWithdrawByArbiter()` ⚠️ |
 | Lockup expired, no dispute | Recipient | `withdraw()` |
-| Recipient spent balance, arbiter covered refund | Auto on next payment | `settleDebt()` |
+| Recipient spent balance, arbiter covered refund | On `withdraw()` or explicit call | `settleDebt()` |
 
 ---
 
@@ -441,14 +506,24 @@ await writeContract({ address: USDC, functionName: "approve", args: [REFUND_PROT
 await writeContract({ functionName: "pay", args: [to, amount, refundTo] });
 ```
 
-### 3. Arbiter trying to refund with no funds available
+### 3. Paying before setLockupSeconds is configured
+```typescript
+// WRONG — lockupSeconds[recipient] defaults to 0; payment is immediately withdrawable
+await pay(recipient, amount, refundTo); // no lockup in effect
+
+// CORRECT — arbiter sets lockup first, then payer sends funds
+await arbiterWallet.writeContract({ functionName: "setLockupSeconds", args: [recipient, lockupDuration] });
+await payerWallet.writeContract({ functionName: "pay", args: [recipient, amount, refundTo] });
+```
+
+### 4. Arbiter trying to refund with no funds available
 ```typescript
 // If recipient already withdrew AND arbiter has no deposited balance,
 // refundByArbiter() will revert with InsufficientFunds.
 // Always keep arbiter reserve funded for dispute coverage.
 ```
 
-### 4. Reusing early withdrawal signatures (replay attack)
+### 5. Reusing early withdrawal signatures (replay attack)
 ```typescript
 // WRONG — using the same salt twice
 const salt = 0n;
@@ -458,7 +533,7 @@ const salt = 0n;
 const salt = BigInt(Date.now()); // or crypto.getRandomValues
 ```
 
-### 5. Not checking payment state before withdraw
+### 6. Not checking payment state before withdraw
 ```typescript
 // CORRECT — always verify lockup and refund status before calling withdraw
 const [, , releaseTimestamp, , , refunded] = await readContract({
@@ -468,13 +543,25 @@ if (refunded) throw new Error("Payment already refunded");
 if (Date.now() / 1000 < Number(releaseTimestamp)) throw new Error("Still locked");
 ```
 
-### 6. Using 18 decimals for USDC
+### 7. Using 18 decimals for USDC
 ```typescript
 // WRONG
 const amount = parseUnits("10.00", 18);
 
 // CORRECT — USDC always uses 6 decimals on Arc
 const amount = parseUnits("10.00", 6);
+```
+
+### 8. Using signTypedData for earlyWithdrawByArbiter signatures
+```typescript
+// WRONG — signTypedData produces EIP-712 canonical array encoding;
+// the contract uses abi.encode() directly, so the digests differ and
+// the signature will not verify onchain.
+const signature = await signTypedData({ domain, types, primaryType, message });
+
+// CORRECT — match _hashEarlyWithdrawalInfo() exactly with encodeAbiParameters
+const hash = keccak256(encodeAbiParameters([...], [[paymentId], [amount], fee, expiry, salt]));
+const { v, r, s } = await sign({ hash, privateKey });
 ```
 
 ---

@@ -39,7 +39,7 @@ Do **not** use this skill for:
 │     → announces price, capabilities, reputation score   │
 ├─────────────────────────────────────────────────────────┤
 │  2. Client calls getActiveBids()                        │
-│     → reads all available agents onchain                │
+│     → reads all available agents onchain (with bidIds)  │
 ├─────────────────────────────────────────────────────────┤
 │  3. Client calls acceptBid(bidId)                       │
 │     → bid marked inactive, BidAccepted event emitted    │
@@ -56,6 +56,12 @@ and payment happen in ERC-8183 `AgenticCommerce`.
 
 ## Contract ABI
 
+> **Note on `getActiveBids` return shape:** The contract's `getActiveBids()`
+> returns a `BidWithId[]` struct that includes `bidId` alongside each bid.
+> This field is required to call `acceptBid()` after selecting a winner.
+> If you are deploying your own instance, ensure your `getActiveBids()`
+> returns `(uint256 bidId, ...)` in each tuple — see the deploying section.
+
 ```typescript
 const bidBoardAbi = [
   { name: "postBid", type: "function", stateMutability: "nonpayable",
@@ -67,13 +73,10 @@ const bidBoardAbi = [
       { name: "capabilities",    type: "string"  }, // JSON array
       { name: "expiresAt",       type: "uint256" }, // unix timestamp
     ], outputs: [{ name: "bidId", type: "uint256" }] },
-
   { name: "cancelBid", type: "function", stateMutability: "nonpayable",
     inputs: [{ name: "bidId", type: "uint256" }], outputs: [] },
-
   { name: "acceptBid", type: "function", stateMutability: "nonpayable",
     inputs: [{ name: "bidId", type: "uint256" }], outputs: [] },
-
   { name: "getActiveBids", type: "function", stateMutability: "view",
     inputs: [
       { name: "offset", type: "uint256" },
@@ -81,18 +84,18 @@ const bidBoardAbi = [
     ],
     outputs: [
       { name: "result", type: "tuple[]", components: [
-        { name: "agent",           type: "address" },
-        { name: "agentId",         type: "uint256" },
-        { name: "priceUsdc",       type: "uint256" },
-        { name: "estimatedMs",     type: "uint256" },
-        { name: "reputationScore", type: "uint256" },
-        { name: "capabilities",    type: "string"  },
-        { name: "expiresAt",       type: "uint256" },
-        { name: "active",          type: "bool"    },
+        { name: "bidId",          type: "uint256" }, // ← ID needed to call acceptBid()
+        { name: "agent",          type: "address" },
+        { name: "agentId",        type: "uint256" },
+        { name: "priceUsdc",      type: "uint256" },
+        { name: "estimatedMs",    type: "uint256" },
+        { name: "reputationScore",type: "uint256" },
+        { name: "capabilities",   type: "string"  },
+        { name: "expiresAt",      type: "uint256" },
+        { name: "active",         type: "bool"    },
       ]},
       { name: "total", type: "uint256" },
     ] },
-
   { name: "getBidsByAgent", type: "function", stateMutability: "view",
     inputs: [{ name: "agent", type: "address" }],
     outputs: [{ name: "", type: "uint256[]" }] },
@@ -119,12 +122,10 @@ const circleClient = initiateDeveloperControlledWalletsClient({
   apiKey: process.env.CIRCLE_API_KEY!,
   entitySecret: process.env.CIRCLE_ENTITY_SECRET!,
 });
-
 const publicClient = createPublicClient({ chain: arcTestnet, transport: http() });
 
 // Agent posts bid — valid for 1 hour
 const expiresAt = Math.floor(Date.now() / 1000) + 3600;
-
 const tx = await circleClient.createContractExecutionTransaction({
   walletAddress: agentWalletAddress,
   blockchain: "ARC-TESTNET",
@@ -155,6 +156,9 @@ for (const log of receipt.logs) {
 
 ### 2. Client lists active bids
 
+`getActiveBids()` returns each bid with its `bidId` included in the tuple.
+Store or pass along `bid.bidId` — it is required to call `acceptBid()`.
+
 ```typescript
 const [bids, total] = await publicClient.readContract({
   address: BID_BOARD,
@@ -164,9 +168,9 @@ const [bids, total] = await publicClient.readContract({
 }) as any;
 
 console.log(`${total} active bids`);
-
 for (const bid of bids) {
-  console.log(`Agent ${bid.agentId} | ${formatUnits(bid.priceUsdc, 6)} USDC | score: ${bid.reputationScore}`);
+  // bid.bidId is available here and must be kept for acceptBid()
+  console.log(`Bid #${bid.bidId} | Agent ${bid.agentId} | ${formatUnits(bid.priceUsdc, 6)} USDC | score: ${bid.reputationScore}`);
   console.log(`Capabilities: ${bid.capabilities}`);
 }
 ```
@@ -192,6 +196,7 @@ eligible.sort((a: any, b: any) => {
 });
 
 const winner = eligible[0];
+// winner.bidId is available because getActiveBids() includes it in each tuple
 
 // Accept the bid onchain
 const acceptTx = await circleClient.createContractExecutionTransaction({
@@ -206,7 +211,6 @@ const acceptTx = await circleClient.createContractExecutionTransaction({
 // Then immediately create the ERC-8183 job
 const AGENTIC_COMMERCE = "0x0747EEf0706327138c69792bF28Cd525089e4583";
 const expiredAt = Math.floor(Date.now() / 1000) + 7200;
-
 const createJobTx = await circleClient.createContractExecutionTransaction({
   walletAddress: clientWalletAddress,
   blockchain: "ARC-TESTNET",
@@ -242,6 +246,26 @@ const cancelTx = await circleClient.createContractExecutionTransaction({
 
 The reference contract is open-source. Deploy a private instance for your
 platform with custom access controls.
+
+> **Required:** Your `getActiveBids()` view function must return `bidId`
+> alongside each bid struct (as `BidWithId[]`), so clients can call
+> `acceptBid(bidId)` after selecting a winner. A `Bid` struct without an
+> ID field makes the bid listing unusable for accepting.
+>
+> Recommended return shape per entry:
+> ```solidity
+> struct BidWithId {
+>     uint256 bidId;
+>     address agent;
+>     uint256 agentId;
+>     uint256 priceUsdc;
+>     uint256 estimatedMs;
+>     uint256 reputationScore;
+>     string  capabilities;
+>     uint256 expiresAt;
+>     bool    active;
+> }
+> ```
 
 ```bash
 # Clone
@@ -324,6 +348,17 @@ const REPUTATION_REGISTRY = "0x8004B663056A597Dffe9eCcC1965A193B7388713";
 const verifiedScore = await getCompositeScore(bid.agentId);
 ```
 
+### 6. Calling acceptBid without bidId
+```typescript
+// WRONG — getActiveBids() without bidId in the tuple leaves you unable to accept
+const bids = await getActiveBids(0n, 20n);
+await acceptBid(bids[0].someOtherField); // undefined — will revert
+
+// CORRECT — ensure getActiveBids() returns BidWithId[] with bidId field
+const [bids] = await getActiveBids(0n, 20n);
+await acceptBid(bids[0].bidId); // explicit ID from the tuple
+```
+
 ---
 
 ## Decision guide
@@ -332,7 +367,7 @@ const verifiedScore = await getCompositeScore(bid.agentId);
 |---|---|
 | Agent announces availability | `postBid()` |
 | Client browses available agents | `getActiveBids()` |
-| Client selects an agent | `acceptBid()` + ERC-8183 `createJob()` |
+| Client selects an agent | `acceptBid(bid.bidId)` + ERC-8183 `createJob()` |
 | Agent withdraws from marketplace | `cancelBid()` |
 | Verify agent credentials | ERC-8004 `IdentityRegistry` + `ReputationRegistry` |
 | Fund and complete job | ERC-8183 `AgenticCommerce` (see `use-agent-economy`) |

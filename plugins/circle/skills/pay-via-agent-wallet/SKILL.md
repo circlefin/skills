@@ -70,7 +70,8 @@ circle services inspect "<service-url>" --output json
 This returns price, supported chains, the seller wallet, the payment scheme (`GatewayWalletBatched` for Gateway, otherwise standard x402 vanilla), and the request schema. **It does NOT execute payment.** Use the response to:
 
 1. Confirm the chain you'll pay from is in the seller's accepted list.
-2. Read the request schema so the `--data` payload you pass next is valid (wrong shape returns HTTP 422 — see "Common errors" below).
+2. Read the `method` field (e.g., `GET`, `POST`) — you **must** pass this explicitly via `-X` in Step 3.
+3. Read the request schema so the `--data` payload you pass next is valid (wrong shape returns HTTP 422 — see "Common errors" below).
 
 **`inspect` summarizes only the CLI's auto-selected `accepts[]` entry.** If the payment method or chain isn't already settled (e.g., you're deciding between Gateway and vanilla, or between chains), also read the raw 402 to see every accept the seller publishes:
 
@@ -84,11 +85,14 @@ Pick the chain / scheme from the full `accepts[]` array rather than relying on t
 
 ```bash
 circle services pay "<service-url>" \
+  -X <METHOD-FROM-INSPECT> \
   --address <wallet-address> \
   --chain <CHAIN> \
   --data '{"key":"value"}' \
   --output json
 ```
+
+**Always pass `-X` with the method from `circle services inspect` output.** The CLI defaults to POST when `--data` is present (like `curl`). If the seller only accepts GET, omitting `-X` causes a 405 rejection *after* payment settles on-chain — burning funds for zero data.
 
 `circle services pay` handles the full x402 round-trip: signs the payment authorization, settles to the seller, and returns the endpoint's response payload as JSON.
 
@@ -152,6 +156,7 @@ These are the specific failure modes worth caching in your head:
 | `HeadersOverflowError` / `UND_ERR_HEADERS_OVERFLOW` | Large x402 payment header | `export NODE_OPTIONS=--max-http-header-size=262144` then re-run |
 | Request timeout | Slow seller | Retry with `--timeout 60` (or higher) |
 | `Could not sign payment authorization: invalid transaction or rawTransaction` | `--chain` doesn't match the chain where balance lives | Re-check balances per chain |
+| HTTP 405 `Method Not Allowed` after payment | CLI sent POST (implied by `--data`) but seller only accepts GET | Pass `-X GET` explicitly — always use the method from `inspect` output |
 
 ## Common rationalizations to reject
 
@@ -176,6 +181,7 @@ For full flag lists and JSON output shapes, run `<cmd> --help` — these change 
 ## Rules
 
 - ALWAYS call `circle services inspect` before paying to confirm current price, chain, and schema. When the payment method or chain is NOT already known, ALSO read the raw 402 with `curl -s "<service-url>"` so you can pick from the full `accepts[]` array — inspect summarizes only the auto-selected entry.
+- ALWAYS pass `-X <method>` explicitly to `circle services pay`, using the `method` field from `circle services inspect` output.
 - ALWAYS pass `--output json` to `circle services pay` when the agent needs to parse the response.
 - ALWAYS read the CLI's chain hint when a seller rejects `--chain X`. The hint is authoritative — don't guess a different chain.
 - ALWAYS surface payment cost to the user before settling. Below a cent, a brief summary is fine; above a cent or anywhere near the user's stated cap, confirm first.

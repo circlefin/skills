@@ -38,3 +38,24 @@ Deploy, import, interact with, and monitor smart contracts using Circle's Smart 
 
 ### use-user-controlled-wallets
 Build embedded crypto wallets where users control their own assets. Supports Web2-like login experiences (Google, Facebook, Apple, email OTP, PIN) without seed phrases. Full-stack implementation with backend API and frontend SDK integration.
+
+### use-circle-cli
+The holistic stablecoin CLI (`@circle-fin/cli`, command `circle`) for AI agents. Acts as the front door to Circle's full agent stack (wallet management, crosschain transfers, paid services, Gateway/Nanopayments, smart contracts, and spending policy) and routes to the specialized skills below for deep flows.
+
+### use-agent-wallet
+Bootstrap a non-custodial USDC agent wallet with the Circle CLI. Covers install check, terms acceptance, login, wallet creation, and status inspection, then hands off to the dedicated payment, funding, and policy skills.
+
+### fund-agent-wallet
+Fund a Circle agent wallet with USDC. Covers the fiat on-ramp (buy USDC with USD/card) and crypto transfer, plus Gateway/Nanopayments deposits used to pay for services. Payments are gas-abstracted (USDC only, no ETH required).
+
+### pay-via-agent-wallet
+Pay for x402 services on Circle's marketplace. Search paid HTTP endpoints by keyword, inspect price and schema, then settle per call in USDC with `circle services pay`. No API keys, accounts, or prefunded billing required.
+
+### agent-wallet-policy
+Set spending limits and controls for an agent wallet via the Circle CLI. The narrower spending-policy flow within the broader CLI capability set.
+
+### swap-tokens
+Swap tokens with Circle's App Kit (`@circle-fin/app-kit`) or the lighter standalone Swap Kit (`@circle-fin/swap-kit`). Both are server-side SDKs that require a kit key; App Kit also bundles bridge and send in one package.
+
+### unify-balance
+Manage a unified USDC balance across chains with Circle's Unified Balance Kit. Exposes simple `deposit()`, `spend()`, and `getBalances()` calls while handling all crosschain orchestration internally.

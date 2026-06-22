@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Circle's official skills and MCP integrations for AI agents",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "pluginRoot": "plugins"
   },
   "plugins": [

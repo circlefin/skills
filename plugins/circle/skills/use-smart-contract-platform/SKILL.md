@@ -104,12 +104,6 @@ Contract deployment is asynchronous. The response indicates initiation only. Pol
 
 Compile Solidity with `evmVersion: "paris"` or earlier to avoid the `PUSH0` opcode. Solidity >= 0.8.20 defaults to Shanghai. Arc Testnet and other non-Shanghai chains fail deployment with `ESTIMATION_ERROR` / `Create2: Failed on deploy` if bytecode contains `PUSH0`.
 
-### Import Contract Requirements
-
-- ALWAYS include both `name` and `idempotencyKey` when calling `importContract()`
-- `idempotencyKey` must be a valid UUID v4 string
-- If import fails with duplicate/already-exists error, call `listContracts`, match by address, and retrieve with `getContract()` using the existing contract ID
-
 ### Transaction Lifecycle
 
 Write operations (contract deployments, executions) follow the same asynchronous state machine as Developer-Controlled Wallets. Poll with `walletsClient.getTransaction({ id: txId })` until a terminal state is reached.

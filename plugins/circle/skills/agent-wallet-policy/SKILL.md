@@ -1,6 +1,6 @@
 ---
 name: agent-wallet-policy
-description: "View spending policy on a Circle agent wallet — per-transaction, daily, weekly, and monthly USDC caps via the `circle` CLI. Use when the user wants to inspect current limits. Setting or resetting limits requires OTP confirmation in an interactive terminal session — the agent hands the user a verbatim command to run themselves; the OTP must never pass through agent storage. Mainnet-only — testnet chains are rejected. Triggers on: spending limit, spending policy, wallet limit, per-tx cap, daily cap, weekly cap, monthly cap, set spending limit, reset spending limit, wallet rules, spending cap, OTP confirmation."
+description: "View spending policy on a Circle agent wallet — per-transaction, daily, weekly, and monthly USDC caps via the `circle` CLI. Use when the user wants to inspect current limits. Setting or resetting limits requires OTP confirmation in an interactive terminal session — the agent hands the user a verbatim command to run themselves; the OTP must never pass through agent storage. Mainnet-only — testnet chains are rejected. Triggers on: spending limit, spending policy, per-tx cap, daily cap, weekly cap, monthly cap, wallet rules, OTP confirmation."
 ---
 
 ## Overview
@@ -15,7 +15,7 @@ Circle agent wallets support **spending policies** — per-wallet caps that the 
 | **Set** custom limits | `circle wallet limit set ...` | **Yes — human OTP, run in user's own terminal** |
 | **Reset** to defaults | `circle wallet limit reset ...` | **Yes — human OTP, run in user's own terminal** |
 
-Spending policies are **mainnet-only**. Testnet chains return an error if you try to set a policy.
+Spending policies are **mainnet-only** (testnet chains are rejected; see Troubleshooting / Rules).
 
 ## Prerequisites
 

@@ -135,7 +135,7 @@ import { parseUnits, formatUnits } from "viem";
 const amount = "10.00";
 const recipient = "0xRecipientAddress";
 
-// Check USDC balance
+// Read the USDC (ERC-20) balance and estimate gas up front
 const usdcBalance = await publicClient.readContract({
   address: USDC,
   abi: erc20Abi,
@@ -143,14 +143,6 @@ const usdcBalance = await publicClient.readContract({
   args: [account.address],
 });
 
-if (usdcBalance < parseUnits(amount, 6)) {
-  const have = formatUnits(usdcBalance, 6);
-  throw new Error(
-    `Insufficient USDC balance. Have: ${have} USDC, Need: ${amount} USDC`
-  );
-}
-
-// Check gas balance
 const gasBalance = await publicClient.getBalance({ address: account.address });
 const gasEstimate = await publicClient.estimateContractGas({
   address: USDC,
@@ -162,12 +154,39 @@ const gasEstimate = await publicClient.estimateContractGas({
 const feeData = await publicClient.estimateFeesPerGas();
 const gasCost = gasEstimate * (feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n);
 
-if (gasBalance < gasCost) {
-  const have = formatUnits(gasBalance, 18);
-  const need = formatUnits(gasCost, 18);
-  throw new Error(
-    `Insufficient gas. Have: ${have} ETH, Need: ~${need} ETH`
-  );
+// Is the native gas asset USDC? True on Arc. Drive this off chain metadata,
+// not a hardcoded chain id, so it generalizes to any stablecoin-gas chain.
+const nativeIsUsdc = chain.nativeCurrency.symbol === "USDC";
+
+if (nativeIsUsdc) {
+  // Arc: the USDC transfer and gas are paid from ONE pool, so require
+  // balance >= amount + gas, both in 18-decimal native units (Arc's native
+  // decimals). gasCost is already in those units.
+  const required = parseUnits(amount, 18) + gasCost;
+  if (gasBalance < required) {
+    const have = formatUnits(gasBalance, 18);
+    const need = formatUnits(required, 18);
+    throw new Error(
+      `Insufficient USDC. Have: ${have} USDC, Need: ~${need} USDC (transfer + gas)`
+    );
+  }
+} else {
+  // Other EVM chains: USDC (ERC-20) and the native gas token are separate
+  // balances — check each independently.
+  if (usdcBalance < parseUnits(amount, 6)) {
+    const have = formatUnits(usdcBalance, 6);
+    throw new Error(
+      `Insufficient USDC balance. Have: ${have} USDC, Need: ${amount} USDC`
+    );
+  }
+  if (gasBalance < gasCost) {
+    const sym = chain.nativeCurrency.symbol;
+    const have = formatUnits(gasBalance, 18);
+    const need = formatUnits(gasCost, 18);
+    throw new Error(
+      `Insufficient gas. Have: ${have} ${sym}, Need: ~${need} ${sym}`
+    );
+  }
 }
 ```
 
@@ -333,7 +352,7 @@ Narrow `fromBlock` to reduce RPC load. Check block explorers for recent block nu
 - Get testnet USDC from https://faucet.circle.com
 
 ### "Insufficient gas"
-- Need native token (ETH, MATIC, etc.) for gas
+- On Arc (this file's example chain), gas is paid in USDC — the native gas asset IS USDC, so just fund the wallet with USDC from https://faucet.circle.com. On other EVM chains, you need the chain's native token (ETH, MATIC, etc.).
 - Get testnet gas from chain-specific faucets
 
 ### "Wrong decimal places" / "Amount too large"

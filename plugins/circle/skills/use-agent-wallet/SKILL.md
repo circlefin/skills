@@ -1,6 +1,6 @@
 ---
 name: use-agent-wallet
-description: "Set up and manage a Circle agent wallet through the `circle` CLI. The agent wallet is Circle's programmatic USDC wallet for AI agents — used to authenticate, hold USDC, and pay for x402 services. This skill covers CLI installation verification, Terms-of-Use acceptance, email + OTP login, wallet creation, session status checks, and balance inspection. Use whenever the user wants to set up, log in to, or inspect the state of their Circle agent wallet, or whenever a downstream skill (like paying for an x402 service or funding the wallet) needs the wallet bootstrapped first. Triggers on: Circle CLI, agent wallet, circle wallet status, circle wallet login, circle wallet create, circle wallet list, circle wallet balance, set up Circle, log in to Circle, x402 setup, Circle Agent Wallet, USDC for agents, terms acceptance, install Circle CLI."
+description: "Set up and manage a Circle agent wallet through the `circle` CLI. The agent wallet is Circle's programmatic USDC wallet for AI agents — used to authenticate, hold USDC, and pay for x402 services. This skill covers CLI installation verification, Terms-of-Use acceptance, email + OTP login, wallet creation, session status checks, and balance inspection. Use whenever the user wants to set up, log in to, or inspect the state of their Circle agent wallet, or whenever a downstream skill (like paying for an x402 service or funding the wallet) needs the wallet bootstrapped first. Triggers on: circle wallet login, circle wallet create, circle wallet status, set up Circle agent wallet, terms acceptance, install Circle CLI, x402 setup."
 ---
 
 ## Overview
@@ -8,8 +8,6 @@ description: "Set up and manage a Circle agent wallet through the `circle` CLI. 
 The Circle CLI (`@circle-fin/cli`, command `circle`) provides a programmatic agent wallet — a non-custodial USDC wallet designed for AI agents to authenticate, hold balances, and pay for paid x402 services on Circle's marketplace. This skill is the bootstrap surface for that wallet: install check, terms acceptance, login, wallet creation, and status inspection. After bootstrap completes, downstream operations (paying for services, funding, spending policy) hand off to dedicated skills.
 
 For an overview of the Circle CLI's **full** capability set — bridging, smart contract execution, transaction inspection, and more — see the `use-circle-cli` master skill. This skill is the narrower bootstrap/identity surface.
-
-This skill is for the CLI agent-wallet flow.
 
 ## Prerequisites / Setup
 
@@ -26,7 +24,7 @@ If not installed:
 npm install -g @circle-fin/cli
 ```
 
-`circle --version` also surfaces any update notice from Circle's server when a newer CLI version is available (server-driven, never blocks). If a notice prints, suggest the user update with `npm install -g @circle-fin/cli@latest` — but only when it is contextually relevant (e.g., at the start of a session or when a command produces unexpected output). Do not run version checks on every routine command.
+`circle --version` also surfaces any server-driven update notice (never blocks). If one prints, suggest `npm install -g @circle-fin/cli@latest` — but only when contextually relevant (session start, or unexpected output), not on every command.
 
 ### Step 2 — Check session status
 
@@ -219,6 +217,7 @@ Run this only if the user explicitly asks to revoke. Do NOT suggest or execute a
 - ALWAYS check `circle wallet status` before attempting login. Many session "failures" are actually just stale assumptions.
 - Parse and store the request ID from `circle wallet login --init` output — you'll need it for the OTP completion step.
 - Request IDs are single-use and expire after 10 minutes. If you see "Invalid or expired request ID", restart from `--init`.
+- If a `circle` command causes friction during setup (unexpected error, confusing output, missing capability), file feedback per the `use-circle-cli` skill's **Report friction (feedback)** section.
 - For general CLI rules (`--output json`, `--chain`, `--help`-first, follow-up phrasing, confirmation defaults), see the `use-circle-cli` master skill's Rules section — they apply here too.
 
 ## Reference Links

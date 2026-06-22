@@ -1,6 +1,6 @@
 ---
 name: use-developer-controlled-wallets
-description: "Create and manage Circle developer-controlled wallets where the application retains full custody of wallet keys on behalf of end-users. Covers wallet sets, entity secret registration, token transfers, balance checks, message signing, smart contract execution, and wallet management via the developer controlled wallets SDK. Triggers on: developer-controlled wallets, dev-controlled wallets, create wallet, wallet set, entity secret, transfer tokens, check balance, EOA wallet, SCA wallet, initiateDeveloperControlledWalletsClient, createWalletSet, createWallets, custody wallet, sign message, sign transaction, sign typed data, contract execution, execute contract, call contract, wallet upgrade, derive wallet, estimate fee, accelerate transaction, cancel transaction."
+description: "Create and manage Circle developer-controlled wallets where the application retains full custody of wallet keys on behalf of end-users. Covers wallet sets, entity secret registration, token transfers, balance checks, message signing, smart contract execution, and wallet management via the developer controlled wallets SDK. Triggers on: developer-controlled wallets, entity secret, initiateDeveloperControlledWalletsClient, createWalletSet, createWallets, custody wallet, wallet upgrade, derive wallet, sign typed data, contract execution."
 ---
 
 ## Overview
@@ -50,7 +50,7 @@ The SDK automatically generates a fresh entity secret ciphertext for each API re
 - **Entity Secret Ciphertext**: RSA-encrypted entity secret using Circle's public key. Must be unique per API request to prevent replay attacks. The SDK handles this automatically.
 - **Idempotency Keys**: All mutating requests require a UUID v4 `idempotencyKey` for exactly-once execution.
 - **Account Types**:
-  - **EOA** (Externally Owned Account) -- default choice. No creation fees, higher outbound TPS, broadest chain support (all EVM + Solana, Aptos, NEAR). Requires native tokens for gas.
+  - **EOA** (Externally Owned Account) -- default choice. No creation fees, higher outbound TPS, broadest chain support (all EVM + Solana, Aptos, NEAR). Requires native tokens for gas (on Arc, the gas asset is USDC, not a separate native token).
   - **SCA** (Smart Contract Account) -- ERC-4337 compliant. Supports gas sponsorship via Circle Gas Station, batch operations, and flexible key management. EVM-only (not available on Solana, Aptos, NEAR). Avoid on Ethereum mainnet due to high gas costs; prefer on L2s.
 - **Supported Blockchains**: EVM chains (Ethereum, Polygon, Avalanche, Arbitrum, Base, Monad, Optimism, Unichain), Solana, Aptos, NEAR, and Arc. See https://developers.circle.com/wallets/account-types for the latest.
 
@@ -77,7 +77,7 @@ All on-chain operations (transfers, contract executions, wallet upgrades) follow
 
 **Recommended: Subscribe to [Webhook Notifications](https://developers.circle.com/wallets/webhook-notifications)** instead of polling. Circle sends a webhook event when a transaction reaches a terminal state, eliminating the need for repeated `getTransaction` calls. Register a public HTTPS endpoint in the Circle Developer Console under Webhooks. Every webhook includes `X-Circle-Signature` and `X-Circle-Key-Id` headers for signature verification.
 
-Polling with `getTransaction` is still available as a fallback or for simple scripts, but webhooks are the recommended approach for production systems.
+Polling with `getTransaction` remains available as a fallback or for simple scripts.
 
 For debugging failed or denied transactions, see [Transaction Errors](https://developers.circle.com/w3s/asynchronous-states-and-statuses#transaction-errors).
 
@@ -97,7 +97,7 @@ For debugging failed or denied transactions, see [Transaction Errors](https://de
 
 ### 4. Sign Messages
 
-**READ** `references/sign-message.md` for the complete guide. Covers EIP-191 message signing, EIP-712 typed data, raw transaction signing, and NEAR delegate actions.
+**READ** `references/sign-with-wallet.md` for the complete guide. Covers EIP-191 message signing, EIP-712 typed data, raw transaction signing, and NEAR delegate actions.
 
 ### 5. Execute Smart Contracts
 
@@ -129,7 +129,7 @@ For debugging failed or denied transactions, see [Transaction Errors](https://de
 - ALWAYS read the correct reference files before implementing.
 - NEVER use `client.getWallet` or `client.getWallets` for balances -- these endpoints never return balance data. See reference file for correct approach.
 - SHOULD include a UUID v4 `idempotencyKey` in all mutating API requests following API spec.
-- ALWAYS ensure EOA wallets hold native tokens (ETH, MATIC, SOL, etc.) for gas before outbound transactions.
+- ALWAYS ensure EOA wallets hold native tokens (ETH, MATIC, SOL, etc.) for gas before outbound transactions. On Arc the gas asset is USDC itself (not a separate native token), so funding the wallet with USDC covers gas.
 - ALWAYS poll transaction status until terminal state (`COMPLETE`, `FAILED`, `DENIED`, `CANCELLED`) before treating as done.
 - ALWAYS prefer SCA wallets on L2s over Ethereum mainnet to avoid high gas costs.
 - ALWAYS default to testnet. Require explicit user confirmation before targeting mainnet.

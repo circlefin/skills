@@ -168,6 +168,7 @@ const spendMultichain = async (): Promise<void> => {
       to: {
         chain: "Arc_Testnet",
         recipientAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+        useForwarder: true,
       },
       amount: "10.00",
     });
@@ -226,6 +227,7 @@ const spendMultichain = async (): Promise<void> => {
       to: {
         chain: "Arc_Testnet",
         recipientAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+        useForwarder: true,
       },
       amount: "10.00",
     });

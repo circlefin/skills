@@ -9,6 +9,9 @@ Skills for building Circle onchain applications with USDC payments, crosschain t
 
 ## Skills
 
+### accept-agent-payments
+Monetize an HTTP endpoint for agents with USDC pay-per-call payments. Defaults to Gateway Nanopayments, covers x402 seller integration, paid-call verification, and Agent Marketplace listing prep.
+
 ### use-usdc
 Interact with USDC on EVM chains and Solana. Use to check balances, send transfers, approve spending, and verify transactions. Supports ERC-20 patterns, SPL token operations, and Associated Token Accounts (ATAs) on Solana.
 

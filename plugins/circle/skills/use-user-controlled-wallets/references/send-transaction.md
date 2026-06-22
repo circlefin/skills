@@ -53,6 +53,8 @@ const response = await circleClient.getWalletTokenBalance({
 
 For native tokens (ETH, MATIC, etc.), pass empty string as `tokenAddress`. For non-native tokens (e.g., USDC), pass the token's contract address. The `tokenAddress` can be obtained from `getWalletTokenBalance`.
 
+**On Arc, the native asset IS USDC** (`0x3600000000000000000000000000000000000000`). The empty-`tokenAddress` "native" balance and the USDC ERC-20 balance are the *same* pool of funds, not two assets — never show or sum them as separate balances. For USDC app logic on Arc, use the ERC-20 view (6 decimals).
+
 ```ts
 const response = await circleClient.createTransaction({
   userToken,

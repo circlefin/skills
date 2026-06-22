@@ -1,6 +1,6 @@
 ---
 name: use-gateway
-description: "Integrate Circle Gateway to hold a unified USDC balance across multiple blockchains and transfer USDC instantly (<500ms) via permissionless deposit, burn, and mint workflows. Available on 11 EVM chains + Solana (mainnet and testnet), plus Arc testnet. Use when: enabling chain-agnostic user experiences, low-latency or instant next-block finality is required, capital needs to be pooled across chains for greater capital efficiency, or building apps with consolidated crosschain balances. Triggers on: Gateway, unified balance, crosschain USDC, instant transfer, chain abstraction, Gateway Wallet, Gateway Minter, gatewayMint, burn intent, crosschain liquidity, payment routing, capital efficiency, permissionless transfer."
+description: "Integrate Circle Gateway to hold a unified USDC balance across multiple blockchains and transfer USDC instantly (<500ms) via permissionless deposit, burn, and mint workflows. Available on 11 EVM chains + Solana (mainnet and testnet), plus Arc testnet. Use when: enabling chain-agnostic user experiences, low-latency or instant next-block finality is required, capital needs to be pooled across chains for greater capital efficiency, or building apps with consolidated crosschain balances. Triggers on: Gateway, Gateway Wallet, Gateway Minter, gatewayMint, burn intent, unified balance, instant crosschain transfer."
 ---
 
 ## Overview
@@ -138,21 +138,14 @@ Think of it like a multi-currency bank account: you see one total, but withdrawa
 ### Balance queries
 - `references/query-balance.md` -- query unified Gateway balances across chains (POST `/balances`)
 
-Route in this order:
+Route to the single best-matching reference by: (1) wallet model -- self-managed or Circle Wallets; (2) source network family -- EVM or Solana; (3) destination network family -- EVM or Solana. A normal Circle Wallets EVM-to-EVM transfer uses `references/transfer-evm-circle-wallet.md`.
 
-1. Choose wallet model: self-managed or Circle Wallets.
-2. Choose source network family: EVM or Solana.
-3. Choose destination network family: EVM or Solana.
-4. If the EVM source depositor is an SCA using Circle Developer-Controlled Wallets, switch to `references/transfer-evm-delegate.md`.
-5. If the user has a self-managed SCA flow, verify the signing and delegate approach against the canonical Gateway docs before reusing the Circle Wallets delegate reference.
-6. Do not select `references/transfer-evm-delegate.md` as the single best reference for a self-managed SCA prompt unless the user explicitly says they are using Circle Developer-Controlled Wallets.
+The delegate flow is a NARROW exception -- an SCA source *depositor* that signs burn intents via a separate EOA delegate:
 
-When responding:
+- Circle Developer-Controlled Wallets where an EOA delegate signs for an SCA depositor -> `references/transfer-evm-delegate.md`. Do NOT use the delegate ref for an ordinary Circle Wallets transfer.
+- Self-managed SCA -> no exact reference matches. Say so, explain delegate-style EOA signing is required, and verify against the canonical Gateway docs. Do NOT reuse `transfer-evm-delegate.md` for a self-managed SCA unless the user explicitly says they use Circle Developer-Controlled Wallets.
 
-- First identify and use the single best matching reference file for the user's scenario.
-- Prefer adapting the existing reference pattern over creating a new workspace or fresh scaffold when the current refs already cover the case.
-- If you do generate code, make it a targeted adaptation of the matched reference rather than inventing a parallel implementation path.
-- If the user asks about a self-managed SCA on EVM and no exact reference exists, say that no single exact reference file matches; explain that delegate-style signing is required and that the Circle Wallets delegate reference is only a pattern to verify against the canonical Gateway docs.
+Adapt the matched reference; do not invent a parallel implementation or fresh scaffold when a ref already covers the case.
 
 ## Rules
 

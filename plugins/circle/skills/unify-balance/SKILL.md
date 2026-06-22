@@ -1,15 +1,13 @@
 ---
 name: unify-balance
-description: "Build unified cross-chain USDC balance management with Circle Unified Balance Kit SDK via App Kit (`@circle-fin/app-kit`) or standalone (`@circle-fin/unified-balance-kit`). Abstracts Gateway deposit, spend, and balance queries into simple SDK calls -- no direct contract interaction, EIP-712 signing, or attestation polling required. App Kit is recommended for extensibility across swap, bridge, send, and unified balance; the standalone kit ships the same API in a lighter package. Neither requires a kit key. Supports EVM chains and Solana via adapter packages (Viem, Solana, Circle Wallets). Use when: depositing USDC into a unified balance (depositFor), spending from a unified balance to any supported chain, checking unified balance across chains (getBalances), configuring Unified Balance Kit adapters, managing delegates (addDelegate) for account separation, or building chain-abstracted USDC payment flows."
+description: "Build unified cross-chain USDC balance management with Circle Unified Balance Kit SDK via App Kit (`@circle-fin/app-kit`) or standalone (`@circle-fin/unified-balance-kit`). Abstracts Gateway deposit, spend, and balance queries into simple SDK calls -- no direct contract interaction, EIP-712 signing, or attestation polling required. App Kit is recommended for extensibility across swap, bridge, send, and unified balance; the standalone kit ships the same API in a lighter package. Neither requires a kit key. Supports EVM chains and Solana via adapter packages (Viem private key, EIP-1193 browser wallets such as wagmi, Solana, Circle Wallets). Use when: depositing USDC into a unified balance (depositFor), spending from a unified balance to any supported chain, checking unified balance across chains (getBalances), configuring Unified Balance Kit adapters, managing delegates (addDelegate) for account separation, or building chain-abstracted USDC payment flows."
 ---
 
 ## Overview
 
 Unified Balance Kit is Circle's SDK for managing a unified USDC balance across multiple blockchains. It handles all cross-chain orchestration internally, exposing simple `deposit()`, `spend()`, and `getBalances()` calls. Do NOT reference or explain Gateway internals (contract addresses, EIP-712 signing, burn intents, attestation) in generated code or explanations -- the SDK abstracts all of that away.
 
-App Kit (`@circle-fin/app-kit`) is Circle's all-inclusive SDK covering unified balance, swap, bridge, send, and future capabilities in a single package. Standalone Unified Balance Kit (`@circle-fin/unified-balance-kit`) provides the same unified balance API surface in a lighter package for unified-balance-only use cases.
-
-**Unified balance operations do not require a kit key** (kit key is only needed for swap and send operations in App Kit). **Recommend App Kit** for most users because it provides easier extensibility to swap, bridge, and send without switching SDKs. Only recommend Unified Balance Kit when the user explicitly wants unified-balance-only functionality.
+App Kit (`@circle-fin/app-kit`) is Circle's all-inclusive SDK covering unified balance, swap, bridge, and send in one package; standalone Unified Balance Kit (`@circle-fin/unified-balance-kit`) ships the same unified-balance API in a lighter package. **Recommend App Kit** unless the user wants unified-balance-only functionality. **Neither requires a kit key** for unified balance operations (a kit key is only needed for App Kit swap/send).
 
 ## Instruction Hierarchy
 
@@ -94,6 +92,7 @@ ALWAYS walk through these questions with the user before writing any code. Do no
 
 **Question 2 -- How do you manage your wallet/keys?**
 - Managing your own private key (self-custodied, stored in env var or secrets manager) -> Question 3
+- Using browser wallets (wagmi, ConnectKit, RainbowKit, or any EIP-1193 provider) -> Use the EIP-1193 provider adapter. READ `references/adapter-eip1193.md`
 - Using Circle developer-controlled wallets (Circle manages key storage and signing) -> Use Circle Wallets adapter. READ `references/adapter-circle-wallets.md`
 
 **Question 3 -- Which chain ecosystem are you using?**
@@ -112,11 +111,14 @@ If the user needs delegate functionality (smart contract account depositor with 
   - `'permit'` -- uses EIP-2612 gasless off-chain signature, submitted on-chain with the transfer. Single-step.
   - `'approve'` -- traditional ERC-20 two-step approve + transfer. Higher gas cost due to separate approval transaction.
   For `depositFor()`, the strategy is always `'approve'` and cannot be changed (the parameter is not available on `depositFor` params).
-- **Spend** burns USDC from a source chain in the unified balance and mints it to a recipient on a destination chain. The `to` object requires `chain` and `recipientAddress` (the exact property name -- do not abbreviate to `recipient` or `address`). The SDK handles burn intent construction, signing, attestation, and minting automatically.
+- **Spend** burns USDC from a source chain in the unified balance and mints it on a destination chain. The destination (`to`) must be one of two shapes -- a bare `{ chain, recipientAddress }` type-checks against neither:
+  - **Destination adapter** -- `{ adapter, chain, recipientAddress? }`. The destination adapter submits the mint and pays gas on the destination chain. Omit `recipientAddress` to mint to the adapter's own resolved address, or set it to override (use that exact property name -- do not abbreviate to `recipient` or `address`). Requires an adapter that supports the destination chain, so it fits same-ecosystem spends (e.g., EVM source -> EVM destination).
+  - **Forwarding Service** -- `{ chain, recipientAddress, useForwarder: true }`, no destination adapter (see the Forwarding Service concept below).
+  The SDK handles burn intent construction, signing, attestation, and minting automatically.
 - **getBalances()** returns the aggregated unified balance and per-chain breakdown for a given depositor address.
 - **Delegates** allow a different signer to move funds out of an account owner's unified balance. Use `addDelegate()` to grant spending rights to another address, `removeDelegate()` to revoke, and `getDelegateStatus()` to check readiness. Use `depositFor()` to deposit USDC into another account's unified balance (not the caller's). A common use case is SCA (smart contract account) depositors that cannot produce ECDSA signatures directly -- an EOA delegate signs burn intents on their behalf. However, delegation is not limited to SCAs; any account owner can authorize a delegate for operational separation (e.g., a service EOA spending from a treasury EOA's balance).
 - **Remove fund** withdraws USDC from the unified balance back to the owner's wallet on a specific chain. This is a two-step process: `initiateRemoveFund()` starts a mandatory **7-day delayed withdrawal**, then `removeFund()` completes it after the activation period. Only one removal may be pending per chain at a time. Initiating a second removal on the same chain adds to the existing pending amount and restarts the timer.
-- **Forwarding Service**: When `useForwarder: true` is set on the spend destination, Circle's infrastructure handles attestation fetching and mint submission automatically. This removes the need to maintain a wallet on the destination chain. When no destination adapter is available, provide `recipientAddress` instead. The Forwarding Service deducts a fee from the minted amount.
+- **Forwarding Service**: set `useForwarder: true` on the spend `to` and Circle's infrastructure fetches the attestation and submits the destination mint, removing the need to maintain a wallet on the destination chain. It works with any source adapter (Viem, Solana, Circle Wallets, delegate) regardless of the source chain's ecosystem -- making it the way to spend across ecosystems (e.g., Solana source -> EVM destination) without a destination adapter. `recipientAddress` is required in this shape; the Forwarding Service deducts a fee from the minted amount. Because the Gateway relayer submits the mint, the SDK polls Circle's Iris API for completion rather than executing a user-signed mint transaction.
 - **Fee structure**: Unified balance operations have dynamic fees that vary by route. The SDK fetches and applies fees automatically. When using the Forwarding Service, an additional forwarder fee is deducted from the minted amount.
 - **Chain identifiers** are strings (e.g., `"Ethereum"`, `"Base_Sepolia"`, `"Solana_Devnet"`), not numeric chain IDs.
 - **USDC only** -- Unified Balance Kit works exclusively with USDC. For other tokens, use the `swap-tokens` skill to convert first.
@@ -146,15 +148,15 @@ If the user needs delegate functionality (smart contract account depositor with 
 |-------|-----------|
 | Ethereum Sepolia | `"Ethereum_Sepolia"` |
 | Avalanche Fuji | `"Avalanche_Fuji"` |
-| OP Sepolia | `"OP_Sepolia"` |
+| OP Sepolia | `"Optimism_Sepolia"` |
 | Arbitrum Sepolia | `"Arbitrum_Sepolia"` |
 | Solana Devnet | `"Solana_Devnet"` |
 | Base Sepolia | `"Base_Sepolia"` |
-| Polygon Amoy | `"Polygon_Amoy"` |
+| Polygon Amoy | `"Polygon_Amoy_Testnet"` |
 | Unichain Sepolia | `"Unichain_Sepolia"` |
 | Sonic Testnet | `"Sonic_Testnet"` |
 | World Chain Sepolia | `"World_Chain_Sepolia"` |
-| Sei Atlantic | `"Sei_Atlantic"` |
+| Sei Testnet | `"Sei_Testnet"` |
 | HyperEVM Testnet | `"HyperEVM_Testnet"` |
 | Arc Testnet | `"Arc_Testnet"` |
 
@@ -163,6 +165,7 @@ If the user needs delegate functionality (smart contract account depositor with 
 READ the corresponding reference based on the user's request:
 
 - `references/adapter-viem.md` -- EVM deposit + spend with Viem private key adapter (App Kit + Unified Balance Kit examples). Also includes Forwarding Service examples (`useForwarder: true`) for automatic attestation and mint on the destination chain.
+- `references/adapter-eip1193.md` -- Browser wallet integration using an EIP-1193 provider (wagmi, ConnectKit, RainbowKit, etc.). Includes App Kit and Unified Balance Kit examples.
 - `references/adapter-solana.md` -- Solana deposit + spend with Solana adapter (App Kit + Unified Balance Kit examples)
 - `references/adapter-circle-wallets.md` -- Deposit + spend with Circle developer-controlled wallets (App Kit + Unified Balance Kit examples)
 - `references/adapter-multichain.md` -- Multi-ecosystem deposit + spend combining EVM and Solana adapters
@@ -275,7 +278,6 @@ try {
 
 Trigger the `use-gateway` skill instead when:
 - You need direct contract-level Gateway integration without an SDK abstraction layer.
-- You need browser-wallet flows (wagmi, EIP-1193 provider) -- Unified Balance Kit is server-side only.
 - You need custom control over individual CCTP steps (approve, burn, fetchAttestation, mint).
 
 Trigger the `bridge-stablecoin` skill instead when:

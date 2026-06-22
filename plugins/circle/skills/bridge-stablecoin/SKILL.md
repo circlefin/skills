@@ -1,13 +1,11 @@
 ---
 name: bridge-stablecoin
-description: "Build USDC bridging with Circle App Kit or standalone Bridge Kit SDK and Crosschain Transfer Protocol (CCTP). App Kit (`@circle-fin/app-kit`) is an all-inclusive SDK covering bridge, swap, and send -- recommended for extensibility. Bridge Kit (`@circle-fin/bridge-kit`) is a standalone package for bridge-only use cases. Neither requires a kit key for bridge operations. Supports bridging USDC between EVM chains, between EVM chains and Solana, and between any two chains on Circle Wallets (i.e Developer-Controlled Wallets or Programmable wallets). Use when: bridge USDC, setting up Bridge Kit adapters (Viem, Ethers, Solana Kit, Circle Wallets), handling bridge events, collecting custom fees, configuring transfer speed, or using the Forwarding Service. Triggers on: Bridge Kit, App Kit, bridge USDC, crosschain transfer, CCTP, move USDC between chains, @circle-fin/bridge-kit, @circle-fin/app-kit, adapter-viem, adapter-ethers, adapter-solana-kit, forwarding service, bridge routes."
+description: "Build USDC bridging with Circle App Kit or standalone Bridge Kit SDK and Crosschain Transfer Protocol (CCTP). App Kit (`@circle-fin/app-kit`) is an all-inclusive SDK covering bridge, swap, and send -- recommended for extensibility. Bridge Kit (`@circle-fin/bridge-kit`) is a standalone package for bridge-only use cases. Neither requires a kit key for bridge operations. Supports bridging USDC between EVM chains, between EVM chains and Solana, and between any two chains on Circle Wallets (i.e Developer-Controlled Wallets or Programmable wallets). Use when: bridge USDC, setting up Bridge Kit adapters (Viem, Ethers, Solana Kit, Circle Wallets), handling bridge events, collecting custom fees, configuring transfer speed, or using the Forwarding Service. Triggers on: bridge USDC, CCTP, move USDC between chains, @circle-fin/bridge-kit, @circle-fin/app-kit, forwarding service."
 ---
 
 ## Overview
 
-Crosschain Transfer Protocol (CCTP) is Circle's native protocol for burning USDC on one chain and minting it on another. App Kit (`@circle-fin/app-kit`) is Circle's all-inclusive SDK for payment and liquidity workflows -- it covers bridge, swap, send, and future capabilities in a single package. Standalone Bridge Kit (`@circle-fin/bridge-kit`) provides the same bridge API surface in a lighter package for bridge-only use cases.
-
-Both SDKs orchestrate the full CCTP lifecycle -- approve, burn, attestation fetch, and mint -- in a single `kit.bridge()` call across EVM chains and Solana. **Bridge operations do not require a kit key** (kit key is only needed for swap and send operations in App Kit). **Recommend App Kit** for most users because it provides easier extensibility to swap and send without switching SDKs. Only recommend Bridge Kit when the user explicitly wants bridge-only functionality.
+Crosschain Transfer Protocol (CCTP) is Circle's native protocol for burning USDC on one chain and minting it on another. App Kit (`@circle-fin/app-kit`) is Circle's all-inclusive SDK covering bridge, swap, and send in one package; standalone Bridge Kit (`@circle-fin/bridge-kit`) ships the same bridge API in a lighter package. Both orchestrate the full CCTP lifecycle -- approve, burn, attestation fetch, mint -- in a single `kit.bridge()` call across EVM and Solana. **Recommend App Kit** unless the user wants bridge-only functionality. **Bridge operations need no kit key** (only swap/send in App Kit do).
 
 ## Prerequisites / Setup
 
@@ -96,7 +94,6 @@ ALWAYS walk through these questions with the user before writing any code. Do no
 - **Forwarding Service**: When `useForwarder: true` is set on the destination, Circle's infrastructure handles attestation fetching and mint submission. This removes the need for a destination wallet or polling loop. There is a per-transfer fee that varies by route (see below).
 - **Transfer speed**: CCTP fast mode (default) completes in ~8-20 seconds. Standard mode takes ~15-19 minutes.
 - **Chain identifiers**: Both SDKs use string chain names (e.g., `"Arc_Testnet"`, `"Base_Sepolia"`, `"Solana_Devnet"`), not numeric chain IDs, in the `kit.bridge()` call.
-- **No kit key for bridge**: Bridge operations do not require a kit key with either SDK. A kit key is only needed for swap and send operations in App Kit.
 
 ## Implementation Patterns
 
@@ -165,120 +162,15 @@ READ the corresponding reference based on the user's request:
 }
 ```
 
-### Forwarding Service
+### Forwarding Service, events, and recovery
 
-When `useForwarder: true` is set on the destination, Circle's infrastructure handles attestation fetching and mint submission automatically. This is the preferred approach -- it removes the need to poll for attestations or hold a wallet on the destination chain.
-
-With adapters on both chains:
-
-```ts
-const result = await kit.bridge({
-  from: { adapter, chain: "Ethereum_Sepolia" },
-  to: {
-    adapter,
-    chain: "Arc_Testnet",
-    useForwarder: true,
-  },
-  amount: "1",
-});
-```
-
-Without a destination adapter (server-side or custodial transfers):
-
-```ts
-const result = await kit.bridge({
-  from: { adapter, chain: "Ethereum_Sepolia" },
-  to: {
-    recipientAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-    chain: "Arc_Testnet",
-    useForwarder: true,
-  },
-  amount: "1",
-});
-```
-
-Forwarding Service fees are dynamic and fetched from the IRIS API at runtime. The SDK handles this automatically. Fees vary by route -- check the [Forwarding Service](https://developers.circle.com/cctp/concepts/forwarding-service) for the latest fee schedule.
-
-### Event Handling
-
-Subscribe to individual CCTP steps or all events at once. Multiple callbacks per event are supported. `payload.values` is inferred precisely from the event key, so no type assertions are needed.
-
-```ts
-kit.on("bridge.approve", (payload) => {
-  console.log("Approval completed:", payload.values.txHash);
-});
-
-kit.on("bridge.burn", (payload) => {
-  console.log("Burn completed:", payload.values.txHash);
-});
-
-kit.on("bridge.fetchAttestation", (payload) => {
-  if (payload.values.state === "success") {
-    console.log("Attestation:", payload.values.data.attestation);
-  }
-});
-
-kit.on("bridge.mint", (payload) => {
-  console.log("Mint completed:", payload.values.txHash);
-});
-
-kit.on("*", (payload) => {
-  console.log("Event:", payload.action, payload);
-});
-```
-
-**Bridge Kit only:** drop the `bridge.` prefix — the events are `"approve"`, `"burn"`, `"fetchAttestation"`, `"mint"`. The App Kit `bridge.*` namespacing only applies because App Kit's `kit.on()` also dispatches other namespaces (e.g. `unifiedBalance.*`) and filters bridge events by the `bridge.` prefix.
+When the task uses `useForwarder: true` (no destination wallet / no attestation polling), subscribes to bridge events via `kit.on()`, or needs to analyze and resume a failed transfer with `kit.retry()`, READ `references/forwarding-events-recovery.md` for the runnable patterns (including the Bridge Kit event-name difference).
 
 ## Error Handling & Recovery
 
 Both App Kit and Bridge Kit have two error categories:
 - **Hard errors** throw exceptions (validation, config, auth) -- catch in try/catch.
-- **Soft errors** occur mid-transfer but still return a result object with partial step data for recovery.
-
-### Analyzing Failed Transfers
-
-Check `result.state` and `result.steps` to identify which step failed:
-
-```ts
-const result = await kit.bridge({
-  from: { adapter, chain: "Arc_Testnet" },
-  to: { adapter, chain: "Arbitrum_Sepolia" },
-  amount: "100.00",
-});
-
-if (result.state === "error") {
-  const failedStep = result.steps.find((step) => step.state === "error");
-  console.log(`Failed at: ${failedStep?.name}`);
-  console.log(`Error: ${failedStep?.error}`);
-
-  const completedSteps = result.steps.filter(
-    (step) => step.state === "success",
-  );
-  completedSteps.forEach((step) => {
-    console.log(`${step.name}: ${step.txHash}`);
-  });
-}
-```
-
-### Retrying Failed Transfers
-
-`kit.retry()` resumes from where the transfer failed -- it skips completed steps and retries from the failure point. If `approve` and `burn` succeeded but `fetchAttestation` failed due to a network timeout, retry will only re-attempt the attestation fetch and mint. This prevents double-spending and wasted gas.
-
-```ts
-const result = await kit.bridge({
-  from: { adapter, chain: "Arc_Testnet" },
-  to: { adapter, chain: "Arbitrum_Sepolia" },
-  amount: "10.00",
-});
-
-if (result.state === "error") {
-  const retryResult = await kit.retry(result, {
-    from: adapter,
-    to: adapter,
-  });
-  console.log("Retry result:", retryResult.state);
-}
-```
+- **Soft errors** occur mid-transfer but still return a result object with partial step data for recovery. NEVER re-run `kit.bridge()` from scratch after a soft error — `kit.retry(result, ...)` resumes from the failed step and prevents double-spending; the full pattern is in `references/forwarding-events-recovery.md`.
 
 ## Rules
 

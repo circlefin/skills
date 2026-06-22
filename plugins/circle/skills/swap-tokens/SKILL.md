@@ -1,13 +1,11 @@
 ---
 name: swap-tokens
-description: "Build token swap functionality with Circle App Kit or standalone Swap Kit SDKs. App Kit (@circle-fin/app-kit) is an all-inclusive SDK covering swap, bridge, and send. Swap Kit (@circle-fin/swap-kit) is standalone for swap-only use cases. Both require a kit key and run server-side only. Swap runs on mainnet chains and on Arc Testnet. Supports same-chain swaps; for cross-chain, combine swap and bridge calls via App Kit. Use when: swapping tokens, exchanging stablecoins, converting USDT to USDC, setting up swap adapters, estimating swap rates, configuring slippage or stop limits, collecting custom swap fees, or combining swap and bridge for cross-chain token movement. Triggers: swap tokens, token exchange, App Kit, Swap Kit, @circle-fin/app-kit, @circle-fin/swap-kit, USDT to USDC, swap USDC, estimateSwap, slippage, stop limit, kit key, swap fees."
+description: "Build token swap functionality with Circle App Kit or standalone Swap Kit SDKs. App Kit (@circle-fin/app-kit) is an all-inclusive SDK covering swap, bridge, and send. Swap Kit (@circle-fin/swap-kit) is standalone for swap-only use cases. Both require a kit key and run server-side only. Swap runs on mainnet chains and on Arc Testnet. Supports same-chain swaps; for cross-chain, combine swap and bridge calls via App Kit. Use when: swapping tokens, exchanging stablecoins, converting USDT to USDC, setting up swap adapters, estimating swap rates, configuring slippage or stop limits, collecting custom swap fees, or combining swap and bridge for cross-chain token movement. Triggers: swap tokens, USDT to USDC, @circle-fin/swap-kit, @circle-fin/app-kit, estimateSwap, slippage, stop limit, kit key."
 ---
 
 ## Overview
 
-App Kit (`@circle-fin/app-kit`) is Circle's all-inclusive SDK for payment and liquidity workflows -- it covers swap, bridge, send, and future capabilities in a single package. Standalone Swap Kit (`@circle-fin/swap-kit`) provides the same swap API surface in a lighter package for swap-only use cases.
-
-Both SDKs require a **kit key**, which is a server-side-only credential. Since the kit key cannot be exposed to client-side code, these SDKs run exclusively on the server -- bundle size is not a practical concern. **Recommend App Kit** for most users because it provides easier extensibility to bridge and send without switching SDKs. Only recommend Swap Kit when the user explicitly wants swap-only functionality.
+App Kit (`@circle-fin/app-kit`) is Circle's all-inclusive SDK covering swap, bridge, and send in one package; standalone Swap Kit (`@circle-fin/swap-kit`) ships the same swap API in a lighter package. **Recommend App Kit** unless the user wants swap-only functionality. Both require a **kit key** -- a server-side-only credential, so these SDKs run exclusively server-side (never in client/browser code).
 
 ## Instruction Hierarchy
 
@@ -117,6 +115,7 @@ If the user needs cross-chain token movement (swap + bridge pattern), also READ 
 - **Swap** executes on a single chain -- exchange one token for another (e.g., USDT to USDC on Ethereum).
 - **Third-party aggregator routing** -- Swap operations are routed through third-party DEX aggregators. The current aggregator is **LiFi**. The aggregator used may vary by route and is subject to change. Users are subject to the applicable aggregator's terms of service when executing swaps.
 - **Chain identifiers** are strings (e.g., `"Ethereum"`, `"Base"`, `"Solana"`, `"Arc_Testnet"`), not numeric chain IDs.
+- **Arc: `NATIVE` and `USDC` are the same asset.** On Arc the native gas asset IS USDC, so a `USDC ↔ NATIVE` swap (either direction) is a same-asset no-op. This holds on every Arc network (the SDK exposes `Arc_Testnet` today). Detect and reject it BEFORE `estimateSwap`/routing/fees — never offer USDC↔native as a swap pair on Arc. This also applies when one side is the USDC contract `0x3600000000000000000000000000000000000000` and the other is `NATIVE`.
 
 ### Supported Chains and Tokens
 
@@ -252,59 +251,9 @@ console.log("Estimated output:", estimate.estimatedOutput);
 console.log("Fees:", estimate.fees);
 ```
 
-### Slippage & Stop Limit
+### Slippage, stop limit, and custom fees
 
-**Slippage tolerance** (relative, in basis points):
-
-```ts
-const result = await kit.swap({
-  from: { adapter, chain: "Ethereum" },
-  tokenIn: "USDT",
-  tokenOut: "USDC",
-  amountIn: "100.00",
-  config: {
-    kitKey: process.env.KIT_KEY as string,
-    slippageBps: 100, // 1% slippage tolerance
-  },
-});
-```
-
-**Stop limit** (absolute minimum output):
-
-```ts
-const result = await kit.swap({
-  from: { adapter, chain: "Ethereum" },
-  tokenIn: "USDT",
-  tokenOut: "USDC",
-  amountIn: "100.00",
-  config: {
-    kitKey: process.env.KIT_KEY as string,
-    stopLimit: "99.50", // Reject if output < 99.50 USDC
-  },
-});
-```
-
-When both `slippageBps` and `stopLimit` are set, `stopLimit` takes precedence.
-
-### Custom Fees
-
-Collect a developer fee on each swap. Circle retains 10% of the custom fee; 90% goes to the configured recipient address. The recipient address must be on the same network as the swap origin.
-
-```ts
-const result = await kit.swap({
-  from: { adapter, chain: "Ethereum" },
-  tokenIn: "USDT",
-  tokenOut: "USDC",
-  amountIn: "100.00",
-  config: {
-    kitKey: process.env.KIT_KEY as string,
-    customFee: {
-      percentageBps: 100, // 1% developer fee
-      recipientAddress: "0xYourFeeRecipientAddress",
-    },
-  },
-});
-```
+When the task sets a slippage tolerance (`slippageBps`, basis points), an absolute minimum output (`stopLimit` — takes precedence when both are set), or a developer fee (`customFee`), READ `references/slippage-fees.md` for the config patterns and fee rules.
 
 ### Error Handling
 

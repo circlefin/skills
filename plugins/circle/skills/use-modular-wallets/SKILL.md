@@ -1,6 +1,6 @@
 ---
 name: use-modular-wallets
-description: "Build crypto wallets using Circle Modular Wallets SDK with passkey authentication, gasless transactions, and extensible module architecture. Use when: creating crypto wallets with passkey-based (WebAuthn) registration and login, sending gasless transactions using Circle Gas Station paymaster, batching multiple transactions into a single user operation, implementing passkey recovery using BIP-39 mnemonic phrases, building advanced onchain wallets with custom modules (multisig, subscriptions, session keys). Triggers on: modular wallet, smart account, MSCA, passkey authentication, WebAuthn, gasless, paymaster, Gas Station, bundler client, user operation, userOp, ERC-4337, ERC-6900, account abstraction, toCircleSmartAccount, toPasskeyTransport, toModularTransport, sendUserOperation, batch transactions, 2D nonce, passkey recovery, EIP-1193 provider."
+description: "Build crypto wallets using Circle Modular Wallets SDK with passkey authentication, gasless transactions, and extensible module architecture. Use when: creating crypto wallets with passkey-based (WebAuthn) registration and login, sending gasless transactions using Circle Gas Station paymaster, batching multiple transactions into a single user operation, implementing passkey recovery using BIP-39 mnemonic phrases, building advanced onchain wallets with custom modules (multisig, subscriptions, session keys). Triggers on: MSCA, passkey authentication, WebAuthn, paymaster, Gas Station, ERC-4337, ERC-6900, toCircleSmartAccount, toModularTransport, sendUserOperation, 2D nonce, passkey recovery, EIP-1193 provider."
 ---
 
 ## Overview
@@ -49,7 +49,7 @@ Before using the SDK, complete the [Console Setup](https://developers.circle.com
 | Polygon | Yes | Yes |
 | Unichain | Yes | Yes |
 
-MSCAs are NOT supported on Solana, Aptos, NEAR, or Ethereum mainnet. For the latest supported blockchains: https://developers.circle.com/wallets/account-types.md
+For the latest supported blockchains: https://developers.circle.com/wallets/account-types.md (MSCA chain restrictions are in Rules below.)
 
 ### Transport URL Path Segments
 
@@ -115,7 +115,7 @@ User operations submitted via `sendUserOperation` follow an asynchronous state m
 | 155507 | SCA account not supported on the given blockchain | Use a [supported chain](https://developers.circle.com/wallets/account-types.md); MSCAs are not available on Ethereum mainnet, Solana, Aptos, or NEAR |
 | 155509 | Paymaster policy required on mainnet before SCA account creation | Configure a Gas Station paymaster policy in Circle Console before creating mainnet accounts |
 | 155512 | Owner of the SCA wallet cannot be found | Verify the passkey credential or EOA owner is valid and accessible |
-| AA21 | Sender didn't pay prefund | Verify `paymaster: true` is set, or fund the smart account with native tokens for gas |
+| AA21 | Sender didn't pay prefund | Verify `paymaster: true` is set, or fund the smart account with native tokens for gas (USDC on Arc) |
 | AA23 | Account validation reverted or out of gas | Check signature validity; increase `verificationGasLimit` if out of gas |
 | AA25 | Invalid account nonce | Get the current nonce from EntryPoint; ensure correct nonce key for 2D nonces |
 | AA33 | Paymaster validation reverted or out of gas | Verify paymaster policy is active and correctly configured in Console |

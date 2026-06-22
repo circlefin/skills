@@ -188,6 +188,7 @@ const spend = async (): Promise<void> => {
         allocations: { amount: "5.00", chain: "Base_Sepolia" },
       },
       to: {
+        adapter,
         chain: "Arc_Testnet",
         recipientAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
       },
@@ -229,6 +230,7 @@ const spend = async (): Promise<void> => {
         allocations: { amount: "5.00", chain: "Base_Sepolia" },
       },
       to: {
+        adapter,
         chain: "Arc_Testnet",
         recipientAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
       },
@@ -269,6 +271,7 @@ const spend = async (): Promise<void> => {
     const result = await kit.unifiedBalance.spend({
       from: { adapter },
       to: {
+        adapter,
         chain: "Arc_Testnet",
         recipientAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
       },
@@ -307,6 +310,7 @@ const spend = async (): Promise<void> => {
     const result = await kit.spend({
       from: { adapter },
       to: {
+        adapter,
         chain: "Arc_Testnet",
         recipientAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
       },

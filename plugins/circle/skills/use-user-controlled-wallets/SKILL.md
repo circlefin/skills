@@ -1,6 +1,6 @@
 ---
 name: use-user-controlled-wallets
-description: "Build non-custodial wallets where end users retain control of their private keys via Circle's user-controlled wallets SDK. Supports Google, Apple, Facebook social login, email OTP, and PIN authentication with MPC-based key management. Covers wallet creation, token transfers, message signing, smart contract execution, and wallet management. Triggers on: user-controlled wallets, embedded wallet, social login wallet, email OTP wallet, PIN wallet, w3s-pw-web-sdk, challenge execution, executeChallenge, non-custodial wallet, MPC wallet, userToken, deviceToken, sign message, sign transaction, sign typed data, contract execution, execute contract, call contract, estimate fee, accelerate transaction, cancel transaction."
+description: "Build non-custodial wallets where end users retain control of their private keys via Circle's user-controlled wallets SDK. Supports Google, Apple, Facebook social login, email OTP, and PIN authentication with MPC-based key management. Covers wallet creation, token transfers, message signing, smart contract execution, and wallet management. Triggers on: user-controlled wallets, social login wallet, email OTP wallet, PIN wallet, w3s-pw-web-sdk, executeChallenge, MPC wallet, userToken, deviceToken, contract execution."
 ---
 
 ## Overview
@@ -71,7 +71,7 @@ For email OTP and social login, the SDK must be initialized with a login callbac
 
 User-controlled wallets support **EOA** and **SCA** account types, chosen at wallet creation.
 
-**EOA (Externally Owned Account)**: No creation fees, higher TPS, broadest chain support (EVM, Solana, Aptos). Requires native tokens for gas on EVM chains. Gas sponsorship only available on Solana via `feePayer`.
+**EOA (Externally Owned Account)**: No creation fees, higher TPS, broadest chain support (EVM, Solana, Aptos). Requires native tokens for gas on EVM chains (on Arc, that gas asset is USDC — there is no separate native token). Gas sponsorship only available on Solana via `feePayer`.
 
 **SCA (Smart Contract Account)**: ERC-4337 account abstraction. Gas sponsorship via Circle Gas Station paymaster, batch operations, flexible key management. EVM-only (no Solana/Aptos). First outbound transaction incurs gas for lazy deployment. Avoid on Ethereum mainnet due to high gas -- use on L2s (Arbitrum, Base, Polygon, Optimism).
 
@@ -101,8 +101,6 @@ Circle Wallet Service (API)
     v
 Blockchain
 ```
-
-This three-tier architecture ensures separation of concerns: the client handles user interaction and consent, the developer service handles business logic and application-level guardrails, and Circle handles cryptographic operations, compliance screening, and blockchain interactions.
 
 ### Challenge-Response Model
 

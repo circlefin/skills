@@ -43,8 +43,14 @@ PRIVATE_KEY=         # Deployer wallet private key
 
 ## Core Concepts
 
-- **USDC-native gas**: Arc uses USDC as its native gas token. No ETH is needed for any transaction.
-- **Dual decimals**: Native gas uses 18 decimals (like ETH on other chains). ERC-20 USDC uses 6 decimals. Mixing these up will produce incorrect amounts.
+- **Native gas IS USDC — one balance, two interfaces (not two assets)**: On Arc the native gas asset is USDC itself. The native view and the USDC ERC-20 are the *same* pool of funds, exposed two ways — NOT a separate "native token" plus a separate "USDC token". Drop the ETH-style mental model from other chains.
+  - **Native view**: 18 decimals. Used only for gas and `msg.value`. wagmi `useBalance` returns this (its `symbol` is `USDC`).
+  - **ERC-20 view**: 6 decimals, at `0x3600000000000000000000000000000000000000`. Use this for all balances, transfers, approvals, and display.
+- **Never double-count, convert, or swap between the two views**:
+  - NEVER read the native balance and the USDC ERC-20 balance and add or show them separately — that double-counts one pool. Show a single USDC balance (the 6-decimal ERC-20 view).
+  - USDC ↔ native is NOT a swap or conversion — it is the same asset. Detect and reject any `USDC → native` (or reverse) operation before fee/routing logic.
+  - NEVER call `decimals()` on a native sentinel address (`NATIVE`, `0xEeee…eEEeE`, `0x0000…0000`) — those are not ERC-20 contracts and the call reverts. The ERC-20 is 6 decimals; native is 18.
+  - The two views differ by a factor of 10^12 (`1e18` native = `1e6` ERC-20). Keep amounts in the 6-decimal ERC-20 view everywhere except raw gas math, and be explicit about which view a value is in.
 - **Testnet only**: Arc is currently in testnet. All addresses and configuration apply to testnet only.
 - **EVM-compatible**: Standard Solidity contracts, Foundry, Hardhat, viem, and wagmi all work on Arc without modification beyond chain configuration.
 
@@ -110,7 +116,7 @@ Use CCTP to bridge USDC from other chains. Arc's CCTP domain is `26`. See the `b
 - Arc Testnet is available by default in Viem -- a custom chain definition is NEVER required.
 - ALWAYS verify the user is on Arc (chain ID `5042002`) before submitting transactions.
 - ALWAYS fund the wallet from https://faucet.circle.com before sending transactions.
-- ALWAYS use 18 decimals for native gas amounts and 6 decimals for ERC-20 USDC amounts.
+- ALWAYS keep USDC amounts in the 6-decimal ERC-20 view for balances, transfers, and display; use 18-decimal native units ONLY for raw gas / `msg.value` math. Never sum the two views or treat native and USDC as separate assets.
 - NEVER target mainnet -- Arc is testnet only.
 
 ## Next Steps

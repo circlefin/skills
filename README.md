@@ -29,12 +29,14 @@ npx skills add circlefin/skills
 
 | Skill | Description |
 |-------|-------------|
+| [`accept-agent-payments`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/accept-agent-payments/SKILL.md) | Monetize an HTTP endpoint for agents with USDC pay-per-call payments. Defaults to Gateway Nanopayments, covers x402 seller integration, paid-call verification, and Agent Marketplace listing prep. |
 | [`use-usdc`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-usdc/SKILL.md) | Interact with USDC on EVM chains and Solana. Check balances, send transfers, approve spending, and verify transactions. |
 | [`bridge-stablecoin`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/bridge-stablecoin/SKILL.md) | Crosschain USDC transfers using CCTP (Crosschain Transfer Protocol). Includes UX patterns, progress tracking, and Bridge Kit SDK implementation. |
 | [`use-arc`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-arc/SKILL.md) | Build on Arc, Circle's blockchain where USDC is the native gas token. Covers chain configuration, contract deployment, and bridging USDC to Arc via CCTP. |
 | [`use-circle-wallets`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-circle-wallets/SKILL.md) | Choose the right Circle wallet type. Compares developer-controlled, user-controlled, and modular (passkey) wallets across custody model, key management, and use cases. |
 | [`use-developer-controlled-wallets`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-developer-controlled-wallets/SKILL.md) | Developer-controlled wallets for custodial flows like payouts, treasury management, and automation. Developers manage wallet creation and key storage. |
 | [`use-gateway`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-gateway/SKILL.md) | Unified USDC balance across chains with instant crosschain transfers (<500ms). Supports EVM and Solana with deposit, balance query, and transfer workflows. |
+| [`unify-balance`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/unify-balance/SKILL.md) | Manage a unified cross-chain USDC balance with Circle's Unified Balance Kit (or App Kit). Abstracts Gateway deposit, spend, and balance queries across EVM and Solana into simple SDK calls — no direct contract interaction or attestation handling. |
 | [`use-modular-wallets`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-modular-wallets/SKILL.md) | Smart contract wallets with passkey authentication, gasless transactions, and modular architecture. Supports ERC-4337 account abstraction. |
 | [`use-smart-contract-platform`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-smart-contract-platform/SKILL.md) | Deploy, import, interact with, and monitor smart contracts using Circle's Smart Contract Platform. Supports bytecode deployment, template contracts (ERC-20/721/1155), ABI-based read/write calls, and event monitoring. |
 | [`use-user-controlled-wallets`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-user-controlled-wallets/SKILL.md) | Embedded wallets where users control their own assets. Supports Web2-like login (Google, Facebook, Apple, email OTP, PIN) without seed phrases. |
@@ -109,4 +111,3 @@ By using this skill, you acknowledge that any output generated in connection wit
 
 ## License
 Apache 2.0 — see [LICENSE](LICENSE) for details.
-

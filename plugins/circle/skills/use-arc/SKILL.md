@@ -113,6 +113,48 @@ Use CCTP to bridge USDC from other chains. Arc's CCTP domain is `26`. See the `b
 - ALWAYS use 18 decimals for native gas amounts and 6 decimals for ERC-20 USDC amounts.
 - NEVER target mainnet -- Arc is testnet only.
 
+## Common Pitfalls
+
+### The Decimal Footgun
+
+Because Arc uses USDC as its native gas token, it is tempting to assume **every** amount on Arc uses 18 decimals -- the convention most EVM chains follow for their native token. That assumption is wrong. On Arc:
+
+- **Native gas** (the value in `msg.value`) uses **18 decimals**, exactly like ETH elsewhere.
+- **ERC-20 USDC** (the token at `0x3600...0000`) uses **6 decimals**.
+
+Mixing these up is one of the most common and expensive mistakes when building on Arc.
+
+**Concrete failure scenario.** You want to transfer **10 USDC**:
+
+- ❌ Using `parseEther('10')` sends `10_000_000_000_000_000_000` (10^18) base units.
+- ✅ Using `parseUnits('10', 6)` sends `10_000_000` (10^6) base units.
+
+That is a **1,000,000,000,000x (one trillion times)** error -- you would be trying to move ten trillion USDC instead of ten.
+
+```typescript
+import { parseEther, parseUnits } from 'viem'
+
+// ❌ WRONG -- treats USDC as an 18-decimal token
+await walletClient.writeContract({
+  address: USDC_ADDRESS,
+  abi: erc20Abi,
+  functionName: 'transfer',
+  args: [recipient, parseEther('10')], // 10_000_000_000_000_000_000 (10^18)
+})
+
+// ✅ CORRECT -- USDC is a 6-decimal ERC-20
+await walletClient.writeContract({
+  address: USDC_ADDRESS,
+  abi: erc20Abi,
+  functionName: 'transfer',
+  args: [recipient, parseUnits('10', 6)], // 10_000_000 (10^6)
+})
+```
+
+**Rule to remember:** If it's ERC-20 USDC, always use `parseUnits(amount, 6)`. If it's native gas (`msg.value`), it's 18 decimals like ETH.
+
+**Why it matters.** This error rarely fails loudly. In the best case the transaction reverts for insufficient balance and you catch it immediately. In the worst case it **silently succeeds with a wildly wrong amount** -- if the receiving contract doesn't validate bounds, you can drain a wallet or break a payment flow before anyone notices.
+
 ## Next Steps
 
 Arc is natively supported across Circle's product suite. Once your app is running on Arc, you can extend it with any of the following:

@@ -21,6 +21,9 @@ Build apps that bridge/transfer USDC between chains using Circle's CCTP (Crossch
 ### use-arc
 Build on Arc, Circle's blockchain where USDC is the native gas token. Covers chain configuration, smart contract deployment (Foundry/Hardhat), frontend integration (viem/wagmi), and bridging USDC to Arc via CCTP.
 
+### use-agent-marketplace
+Post, discover, and accept onchain service bids between ERC-8004 AI agents and job clients on Arc using the AgentBidBoard contract. Covers the full bid lifecycle (postBid, cancelBid, acceptBid, getActiveBids, getBidsByAgent), agent-selection strategy, deploying a custom instance, and the off-chain bridge from `acceptBid()` to ERC-8183 `createJob()` — including the antipatterns (unverified agent identity, self-reported reputation, orphaned acceptance) that make the pattern unsafe if misused.
+
 ### use-circle-wallets
 Choose the right Circle wallet type for your application. Compares developer-controlled, user-controlled, and modular (passkey) wallets across custody model, key management, account types, and blockchain support with a step-by-step decision guide.
 

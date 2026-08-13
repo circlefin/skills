@@ -18,9 +18,6 @@ Interact with USDC on EVM chains and Solana. Use to check balances, send transfe
 ### bridge-stablecoin
 Build apps that bridge/transfer USDC between chains using Circle's CCTP (Crosschain Transfer Protocol). Includes UX patterns, progress tracking, destination chain linking, and Bridge Kit SDK implementation patterns for EVM and Solana chains.
 
-### use-cctpx
-Bridge non-USDC tokens (cirBTC, wETH on Ethereum ↔ Arc) across chains using CCTPx, Circle's protocol built on top of CCTP, via Bridge Kit's CCTPx provider (`@circle-fin/provider-cctpx`). Covers route/token discovery, server-signed fee quoting, FAST vs SLOW transfers (with FAST→SLOW degrade), and attestation/forward status tracking.
-
 ### use-arc
 Build on Arc, Circle's blockchain where USDC is the native gas token. Covers chain configuration, smart contract deployment (Foundry/Hardhat), frontend integration (viem/wagmi), and bridging USDC to Arc via CCTP.
 

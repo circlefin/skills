@@ -1,6 +1,6 @@
 {
 	"name": "circle",
-	"version": "1.1.0",
+	"version": "1.3.0",
 	"description": "Ship stablecoin apps faster. Best-practice skills for USDC payments, cross-chain transfers, wallets, and smart contracts — plus Circle's MCP server for real-time SDK and documentation guidance.",
 	"author": {
 		"name": "Circle Technology Services"

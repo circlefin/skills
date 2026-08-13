@@ -145,6 +145,8 @@ When a condition for `--method direct` holds (above), or the user wants USDC bac
 
 On ANY funding error (missing flags, unscannable QR, `Wallet not deployed`, `Insufficient balance`, wrong chain after eco, withdraw limits), READ `references/troubleshooting.md` for the error table and reference links.
 
+If a legacy Eco intent expired, is `WaitingForRefund`, or refunded USDC to `eoaOwnerAddress`, stop funding and hand off to the `recover-eco-funds` skill. Verify the onchain fixed refund recipient before using any executable recovery phase. Current Gateway v2 deposits set `refundRecipient` to the SCA and should use normal status and balance reconciliation instead.
+
 ## Rules
 
 - NEVER prompt users to send USDC to addresses you generated. ALWAYS use the user's own wallet from `circle wallet list`.
@@ -164,6 +166,12 @@ On ANY funding error (missing flags, unscannable QR, `Wallet not deployed`, `Ins
 - If the `circle` CLI itself causes friction during funding (unexpected error, confusing output, missing capability), file feedback per the `use-circle-cli` skill's **Report friction (feedback)** section.
 
 ## Alternatives
+
+Trigger the `recover-eco-funds` skill instead when:
+
+- A legacy Eco intent expired, is waiting for refund, or is missing from Gateway.
+- Refunded USDC landed at the SCA's API-verified backing EOA.
+- The user needs a permissionless Eco self-refund after the onchain deadline.
 
 Trigger the `use-agent-wallet` skill instead when:
 

@@ -6,9 +6,11 @@ Reference implementation for setting up and executing wallet recovery using a BI
 
 ## Environment Variables
 
+Scaffolding (Next.js vs Vite pairs and fixed Client URL) lives in `SKILL.md`. This example uses Vite:
+
 ```
-VITE_CLIENT_KEY=<your-circle-client-key>
-VITE_CLIENT_URL=<your-circle-client-url>
+VITE_CLIENT_KEY=
+VITE_CLIENT_URL=https://modular-sdk.circle.com/v1/rpc/w3s/buidl
 ```
 
 ## Setup

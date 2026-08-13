@@ -18,6 +18,9 @@ Interact with USDC on EVM chains and Solana. Use to check balances, send transfe
 ### bridge-stablecoin
 Build apps that bridge/transfer USDC between chains using Circle's CCTP (Crosschain Transfer Protocol). Includes UX patterns, progress tracking, destination chain linking, and Bridge Kit SDK implementation patterns for EVM and Solana chains.
 
+### use-cctpx
+Bridge non-USDC tokens (cirBTC, wETH on Ethereum ↔ Arc) across chains using CCTPx, Circle's protocol built on top of CCTP, via Bridge Kit's CCTPx provider (`@circle-fin/provider-cctpx`). Covers route/token discovery, server-signed fee quoting, FAST vs SLOW transfers (with FAST→SLOW degrade), and attestation/forward status tracking.
+
 ### use-arc
 Build on Arc, Circle's blockchain where USDC is the native gas token. Covers chain configuration, smart contract deployment (Foundry/Hardhat), frontend integration (viem/wagmi), and bridging USDC to Arc via CCTP.
 
@@ -47,6 +50,9 @@ Bootstrap a non-custodial USDC agent wallet with the Circle CLI. Covers install 
 
 ### fund-agent-wallet
 Fund a Circle agent wallet with USDC. Covers the fiat on-ramp (buy USDC with USD/card) and crypto transfer, plus Gateway/Nanopayments deposits used to pay for services. Payments are gas-abstracted (USDC only, no ETH required).
+
+### recover-eco-funds
+Diagnose and recover USDC from a legacy Circle CLI Eco deposit. Covers onchain intent reconstruction, permissionless self-refunds after the deadline, and ERC-3009 sweeps from an API-verified backing EOA to its linked SCA with explicit approval before each broadcast.
 
 ### pay-via-agent-wallet
 Pay for x402 services on Circle's marketplace. Search paid HTTP endpoints by keyword, inspect price and schema, then settle per call in USDC with `circle services pay`. No API keys, accounts, or prefunded billing required.

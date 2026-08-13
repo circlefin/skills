@@ -23,16 +23,23 @@ npm install bip39
 
 ### Environment Variables
 
+Write or merge into the project's env file when scaffolding Modular Wallets:
+
+```bash
+# .env.local (Next.js) or .env (Vite)
+# Paste your Client Key from Console → Keys → Client Keys (shown once; starts with TEST_API_KEY:)
+NEXT_PUBLIC_CLIENT_KEY=
+NEXT_PUBLIC_CLIENT_URL=https://modular-sdk.circle.com/v1/rpc/w3s/buidl
+VITE_CLIENT_KEY=
+VITE_CLIENT_URL=https://modular-sdk.circle.com/v1/rpc/w3s/buidl
 ```
-CLIENT_KEY=     # Circle Console client key for app identification
-CLIENT_URL=     # Circle Client URL (e.g., https://modular-sdk.circle.com/v1/rpc/w3s/buidl)
-```
+
+Use the `NEXT_PUBLIC_*` pair for Next.js or the `VITE_*` pair for Vite — not both. Client URL is fixed — do not ask the user to copy it from Console. Chain paths (e.g. `/arcTestnet`) are appended in code via `toModularTransport`, not in the env var.
 
 Before using the SDK, complete the [Console Setup](https://developers.circle.com/wallets/modular/console-setup.md):
 
-1. Create a Client Key in the Circle Console
+1. Console → Keys → Client Keys — create a Client Key
 2. Configure the Passkey Domain (passkeys are domain-bound)
-3. Retrieve the Client URL
 
 ## Quick Reference
 
@@ -144,7 +151,7 @@ Passkey errors (`NotAllowedError`, `SecurityError`, `InvalidStateError`) are sta
 - ALWAYS append the chain-specific path segment to the client URL for `toModularTransport` (e.g., `${clientUrl}/polygonAmoy`).
 - ALWAYS use `parseUnits(value, 6)` for USDC amounts (6 decimals, not 18).
 - ALWAYS pass `paymaster: true` to sponsor gas via Circle Gas Station.
-- ALWAYS complete Circle Console Setup (client key, passkey domain, client URL) before using the SDK.
+- ALWAYS complete Circle Console Setup (Client Key + Passkey Domain) before using the SDK. Client URL is fixed in env — do not ask the user to retrieve it from Console.
 - ALWAYS default to testnet. Require explicit user confirmation before targeting mainnet.
 - ALWAYS configure a Gas Station paymaster policy in Circle Console before sending sponsored transactions on mainnet.
 - ALWAYS update transport URLs from testnet path segments (e.g., `/polygonAmoy`) to mainnet equivalents (e.g., `/polygon`) when migrating to production.

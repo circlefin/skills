@@ -5,7 +5,7 @@ This example burns from Arc Testnet and mints on Solana Devnet. The same pattern
 Canonical runnable references:
 - Transfer unified USDC balance: https://developers.circle.com/gateway/howtos/transfer-unified-usdc-balance.md
 - Unified balance Solana quickstart: https://developers.circle.com/gateway/quickstarts/unified-balance-solana.md
-- Arc crosschain USDC tutorial: https://docs.arc.network/arc/tutorials/access-usdc-crosschain.md
+- Arc crosschain USDC tutorial: https://docs.arc.io/arc/tutorials/access-usdc-crosschain
 
 ## What this does
 

@@ -102,7 +102,7 @@ No. Skills work standalone. MCP adds accuracy for SDK details that change betwee
 
 ## Resources
 - [Circle Developer Docs](https://developers.circle.com)
-- [Arc Docs](https://docs.arc.network)
+- [Arc Docs](https://docs.arc.io)
 - [Circle MCP Server](https://developers.circle.com/ai/mcp)
 - [Testnet Faucet](https://faucet.circle.com)
 - [USDC Contract Addresses](https://developers.circle.com/stablecoins/usdc-contract-addresses)

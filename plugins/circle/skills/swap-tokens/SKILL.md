@@ -172,7 +172,7 @@ const SUPPORTED_TOKENS = [
 ] as const;
 ```
 
-Any token can also be specified by contract address. The aliases above are shortcuts for the most common tokens. See [Supported Blockchains](https://docs.arc.network/app-kit/references/supported-blockchains) for the latest list.
+Any token can also be specified by contract address. The aliases above are shortcuts for the most common tokens. See [Supported Blockchains](https://docs.arc.io/app-kit/references/supported-blockchains) for the latest list.
 
 ### Additional Swap Configuration
 
@@ -310,8 +310,8 @@ try {
 - ALWAYS use exported SDK types instead of creating custom interfaces.
 
 ## Reference Links
-- [Circle App Kit SDK](https://docs.arc.network/app-kit)
-- [Circle Swap Kit SDK](https://docs.arc.network/app-kit/swap)
+- [Circle App Kit SDK](https://docs.arc.io/app-kit)
+- [Circle Swap Kit SDK](https://docs.arc.io/app-kit/swap)
 - [Circle Developer Docs](https://developers.circle.com/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.
 
 ## Alternatives

@@ -269,8 +269,8 @@ try {
 
 ## Reference Links
 
-- [Circle App Kit SDK](https://docs.arc.network/app-kit)
-- [Unified Balance Kit SDK](https://docs.arc.network/app-kit/unified-balance)
+- [Circle App Kit SDK](https://docs.arc.io/app-kit)
+- [Unified Balance Kit SDK](https://docs.arc.io/app-kit/unified-balance)
 - [Circle Gateway](https://developers.circle.com/gateway)
 - [Circle Developer Docs](https://developers.circle.com/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.
 

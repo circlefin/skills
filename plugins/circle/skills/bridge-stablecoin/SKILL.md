@@ -198,8 +198,8 @@ Both App Kit and Bridge Kit have two error categories:
 
 ## Reference Links
 
-- [Circle App Kit SDK](https://docs.arc.network/app-kit)
-- [Circle Bridge Kit SDK](https://docs.arc.network/app-kit/bridge)
+- [Circle App Kit SDK](https://docs.arc.io/app-kit)
+- [Circle Bridge Kit SDK](https://docs.arc.io/app-kit/bridge)
 - [CCTP Documentation](https://developers.circle.com/cctp)
 - [Circle Developer Docs](https://developers.circle.com/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.
 

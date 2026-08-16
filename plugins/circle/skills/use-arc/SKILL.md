@@ -135,7 +135,7 @@ Arc is natively supported across Circle's product suite. Once your app is runnin
 
 ## Reference Links
 
-- [Arc Docs](https://docs.arc.network/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.
+- [Arc Docs](https://docs.arc.io/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.
 - [Arc Explorer](https://testnet.arcscan.app)
 - [Circle Faucet](https://faucet.circle.com)
 - [Circle Developer Docs](https://developers.circle.com/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.

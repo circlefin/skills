@@ -32,7 +32,7 @@ Canonical source docs for verification:
 - Gateway quickstarts:
   - `https://developers.circle.com/gateway/quickstarts/unified-balance-evm.md`
   - `https://developers.circle.com/gateway/quickstarts/unified-balance-solana.md`
-- Arc tutorial: `https://docs.arc.network/arc/tutorials/access-usdc-crosschain.md`
+- Arc tutorial: `https://docs.arc.io/arc/tutorials/access-usdc-crosschain`
 
 ## Quick Reference
 

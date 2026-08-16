@@ -62,7 +62,7 @@ const crosschainMovement = async (): Promise<void> => {
   // Step 2: Bridge USDC from Ethereum to Base
   // useForwarder: true lets Circle's Forwarding Service handle attestation
   // fetching and mint submission on the destination chain automatically.
-  // See: https://docs.arc.network/app-kit/tutorials/bridge/use-forwarding-service
+  // See: https://docs.arc.io/app-kit/tutorials/bridge/use-forwarding-service
   try {
     const bridgeResult = await kit.bridge({
       from: { adapter, chain: "Ethereum" },
@@ -108,7 +108,7 @@ const crosschainMovement = async (): Promise<void> => {
   // Step 1: Bridge USDC from Ethereum to Base
   // useForwarder: true lets Circle's Forwarding Service handle attestation
   // fetching and mint submission on the destination chain automatically.
-  // See: https://docs.arc.network/app-kit/tutorials/bridge/use-forwarding-service
+  // See: https://docs.arc.io/app-kit/tutorials/bridge/use-forwarding-service
   let bridgeResult;
   try {
     bridgeResult = await kit.bridge({
@@ -194,7 +194,7 @@ const crosschainMovement = async (): Promise<void> => {
   // Step 2: Bridge USDC from Ethereum to Base
   // useForwarder: true lets Circle's Forwarding Service handle attestation
   // fetching and mint submission on the destination chain automatically.
-  // See: https://docs.arc.network/app-kit/tutorials/bridge/use-forwarding-service
+  // See: https://docs.arc.io/app-kit/tutorials/bridge/use-forwarding-service
   let bridgeResult;
   try {
     bridgeResult = await kit.bridge({

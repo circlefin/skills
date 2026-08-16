@@ -5,7 +5,7 @@ This example uses Arc Testnet, but the same deposit pattern applies to any suppo
 Canonical runnable references:
 - Create unified USDC balance: https://developers.circle.com/gateway/howtos/create-unified-usdc-balance.md
 - Unified balance EVM quickstart: https://developers.circle.com/gateway/quickstarts/unified-balance-evm.md
-- Arc crosschain USDC tutorial: https://docs.arc.network/arc/tutorials/access-usdc-crosschain.md
+- Arc crosschain USDC tutorial: https://docs.arc.io/arc/tutorials/access-usdc-crosschain
 
 ## What this does
 

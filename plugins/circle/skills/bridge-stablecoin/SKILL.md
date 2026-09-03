@@ -1,6 +1,6 @@
 ---
 name: bridge-stablecoin
-description: "Build browser or server USDC bridging with Circle App Kit or standalone Bridge Kit and CCTP. Supports EVM and Solana browser wallets, private-key and Circle Wallets adapters, bridge events, custom fees, transfer speed, Forwarding Service, and recovery. Bridge operations require no kit key. Use when: bridge USDC, move USDC across chains, build wallet-connected bridge UIs, configure Viem/Ethers/Solana adapters, or use @circle-fin/bridge-kit, @circle-fin/app-kit, CCTP, forwarding, or bridge routes."
+description: "Build browser or server USDC bridging with Circle App Kit or standalone Bridge Kit and CCTP. Supports EVM and Solana browser wallets, private-key and Circle Wallets adapters, bridge events, custom fees, transfer speed, Forwarding Service, recovery, and destination settlement verification from a BridgeResult mint. Bridge operations require no kit key. Use when: bridge USDC, move USDC across chains, build wallet-connected bridge UIs, configure Viem/Ethers/Solana adapters, verify destination USDC settlement, or use @circle-fin/bridge-kit, @circle-fin/app-kit, CCTP, forwarding, or bridge routes."
 requirements:
   runtimes: []
   connectors: []
@@ -112,6 +112,7 @@ READ the corresponding reference based on the user's request:
 - `references/adapter-circle-wallets.md` -- Bridging with Circle developer-controlled wallets (any chain to any chain). Includes App Kit and Bridge Kit examples.
 - `references/adapter-wagmi.md` -- Browser wallet integration using wagmi (ConnectKit, RainbowKit, etc.). Includes App Kit and Bridge Kit examples.
 - `references/adapter-browser-wallet.md` -- Solana browser wallet integration using a Wallet Standard provider, with no manual polyfills
+- `references/settlement-verification.md` -- After a successful mint, verify destination receipt-level USDC settlement (exact recipient, exact amount, expected USDC contract). A successful mint transaction is not the same as expected funds settled.
 
 ### Sample Response from kit.bridge()
 
@@ -208,6 +209,7 @@ Both App Kit and Bridge Kit have two error categories:
 - ALWAYS use string chain names (e.g., `"Arc"`, `"Arc_Testnet"`, `"Base_Sepolia"`), not numeric chain IDs.
 - ALWAYS default to testnet. Require explicit user confirmation before targeting mainnet.
 - ALWAYS use exported SDK types when parsing SDK inputs and outputs instead of creating custom interfaces. This minimizes type errors.
+- ALWAYS verify destination settlement from the mint receipt when the application must credit a payment. `result.state === "success"` and a mint `txHash` prove the mint call succeeded, not that the expected USDC Transfer occurred. READ `references/settlement-verification.md`.
 
 ## Reference Links
 

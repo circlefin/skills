@@ -92,7 +92,7 @@ console.log(`USDC Balance: ${formattedBalance} USDC`);
 console.log(`Address: 0xYourAddress`);
 console.log(`Chain: Arc Testnet (5042002)`);
 console.log(`Contract: ${USDC}`);
-console.log(`Explorer: https://explorer.arc-testnet.io/address/0xYourAddress`);
+console.log(`Explorer: https://testnet.arcscan.app/address/0xYourAddress`);
 ```
 
 **Expected output:**
@@ -101,7 +101,7 @@ USDC Balance: 10.50 USDC
 Address: 0xYourAddress
 Chain: Arc Testnet (5042002)
 Contract: 0x3600000000000000000000000000000000000000
-Explorer: https://explorer.arc-testnet.io/address/0xYourAddress
+Explorer: https://testnet.arcscan.app/address/0xYourAddress
 ```
 
 **Always format with 6 decimals — never 18.**
@@ -223,7 +223,7 @@ const hash = await walletClient.writeContract({
 });
 
 console.log(`Transaction submitted: ${hash}`);
-console.log(`Explorer: https://explorer.arc-testnet.io/tx/${hash}`);
+console.log(`Explorer: https://testnet.arcscan.app/tx/${hash}`);
 
 // Wait for confirmation
 const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -324,7 +324,7 @@ for (const log of logs) {
   console.log(`Received ${amount} USDC from ${from}`);
   console.log(`  Block: ${log.blockNumber}`);
   console.log(`  Tx: ${log.transactionHash}`);
-  console.log(`  Explorer: https://explorer.arc-testnet.io/tx/${log.transactionHash}`);
+  console.log(`  Explorer: https://testnet.arcscan.app/tx/${log.transactionHash}`);
 }
 ```
 

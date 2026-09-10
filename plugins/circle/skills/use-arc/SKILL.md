@@ -58,7 +58,7 @@ PRIVATE_KEY=         # Deployer wallet private key
 
 ### 1. Frontend App (React + wagmi)
 
-Use the `arcTestnet` chain definition from Prerequisites / Setup. Pass it to your wagmi config:
+Import the `arcTestnet` chain from `viem/chains` — it ships with viem, so no custom `defineChain` is required. Pass it to your wagmi config:
 
 ```typescript
 import { createConfig, http } from 'wagmi'

@@ -257,7 +257,7 @@ apple: { clientId: "...", redirectUri: "..." }
 ## Error Handling
 
 | Error Code | Meaning | Action |
-|------------|---------|--------|
+| --- | --- | --- |
 | 155106 | User already initialized | Fetch existing wallets instead of creating |
 | 155104 | Invalid user token | Re-authenticate user |
 | 155101 | Invalid device token | Regenerate device token |

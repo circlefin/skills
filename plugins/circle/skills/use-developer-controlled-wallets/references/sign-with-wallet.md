@@ -43,6 +43,8 @@ const signature = signResponse.data?.signature;
 
 Provide `walletAddress` + `blockchain` instead of `walletId` when you only have the address.
 
+For **Arc mainnet**, use `blockchain: "ARC"` (these examples use `"ARC-TESTNET"`).
+
 ## Other signing operations
 
 The SDK also supports these additional signing methods. They follow the same pattern (provide `walletId` or `walletAddress` + `blockchain`, plus `entitySecretCiphertext` handled automatically by the SDK):

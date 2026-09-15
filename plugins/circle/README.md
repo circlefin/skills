@@ -16,7 +16,7 @@ Monetize an HTTP endpoint for agents with USDC pay-per-call payments. Defaults t
 Interact with USDC on EVM chains and Solana. Use to check balances, send transfers, approve spending, and verify transactions. Supports ERC-20 patterns, SPL token operations, and Associated Token Accounts (ATAs) on Solana.
 
 ### bridge-stablecoin
-Build apps that bridge/transfer USDC between chains using Circle's CCTP (Crosschain Transfer Protocol). Includes UX patterns, progress tracking, destination chain linking, and Bridge Kit SDK implementation patterns for EVM and Solana chains.
+Build browser or server apps that bridge USDC between chains using Circle's CCTP. Includes browser-wallet and server adapters, UX patterns, progress tracking, destination chain linking, and App Kit or Bridge Kit implementation patterns for EVM and Solana.
 
 ### use-arc
 Build on Arc, Circle's blockchain where USDC is the native gas token. Covers chain configuration, smart contract deployment (Foundry/Hardhat), frontend integration (viem/wagmi), and bridging USDC to Arc via CCTP.
@@ -58,7 +58,7 @@ Pay for x402 services on Circle's marketplace. Search paid HTTP endpoints by key
 Set spending limits and controls for an agent wallet via the Circle CLI. The narrower spending-policy flow within the broader CLI capability set.
 
 ### swap-tokens
-Swap tokens with Circle's App Kit (`@circle-fin/app-kit`) or the lighter standalone Swap Kit (`@circle-fin/swap-kit`). Both are server-side SDKs that require a kit key; App Kit also bundles bridge and send in one package.
+Swap tokens in browser or server apps with Circle's App Kit (`@circle-fin/app-kit`) or standalone Swap Kit (`@circle-fin/swap-kit`). Covers keyless swaps, browser-wallet and server adapters, and direct same-chain or cross-chain routes.
 
 ### unify-balance
-Manage a unified USDC balance across chains with Circle's Unified Balance Kit. Exposes simple `deposit()`, `spend()`, and `getBalances()` calls while handling all crosschain orchestration internally.
+Manage a unified USDC balance across chains in browser or server apps with Circle's Unified Balance Kit or App Kit. Covers EVM and Solana wallet-provider adapters plus `deposit()`, `spend()`, and `getBalances()` flows.

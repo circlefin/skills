@@ -3,7 +3,7 @@
 ## Error table
 
 | Error | What it means | Fix |
-|---|---|---|
+| --- | --- | --- |
 | `Seller does not accept --chain X. Accepted chains: Y, Z.` | Wrong chain for this seller | Retry with one of the listed chains — the CLI's hint is authoritative |
 | `Insufficient Gateway balance for X.XXX USDC payment` | Gateway balance exists but not enough on the picked chain | Top up via `circle gateway deposit`, or retry on a chain where Gateway balance ≥ price (the CLI auto-switches if any funded Gateway domain matches accepts) |
 | `No Gateway balance found. A deposit is required ...` | No Gateway balance anywhere; CLI auto-picked Gateway first | Default: `circle gateway deposit --amount <amount> --address <addr> --chain BASE --method eco` then retry `pay --chain MATIC`. Hand off to `fund-agent-wallet` for the full funding flow. |

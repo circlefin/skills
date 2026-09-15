@@ -16,6 +16,8 @@ npm install @circle-fin/unified-balance-kit @circle-fin/adapter-viem-v2 viem
 
 ```
 EVM_PRIVATE_KEY=          # EVM wallet private key (hex, 0x-prefixed) -- for adapter-based queries
+DEPOSITOR_ADDRESS=        # Depositor address to query the unified balance for
+OTHER_DEPOSITOR_ADDRESS=  # Second depositor address (for comparison queries)
 ```
 
 ## Get Balances with Adapter (Using App Kit)

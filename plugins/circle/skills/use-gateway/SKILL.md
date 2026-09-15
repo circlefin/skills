@@ -1,6 +1,9 @@
 ---
 name: use-gateway
-description: "Integrate Circle Gateway to hold a unified USDC balance across multiple blockchains and transfer USDC instantly (<500ms) via permissionless deposit, burn, and mint workflows. Available on 11 EVM chains + Solana (mainnet and testnet), plus Arc testnet. Use when: enabling chain-agnostic user experiences, low-latency or instant next-block finality is required, capital needs to be pooled across chains for greater capital efficiency, or building apps with consolidated crosschain balances. Triggers on: Gateway, Gateway Wallet, Gateway Minter, gatewayMint, burn intent, unified balance, instant crosschain transfer."
+description: "Integrate Circle Gateway to hold a unified USDC balance across multiple blockchains and transfer USDC instantly (<500ms) via permissionless deposit, burn, and mint workflows. Available on 11 EVM chains + Solana (mainnet and testnet), plus Arc (mainnet and testnet). Use when: enabling chain-agnostic user experiences, low-latency or instant next-block finality is required, capital needs to be pooled across chains for greater capital efficiency, or building apps with consolidated crosschain balances. Triggers on: Gateway, Gateway Wallet, Gateway Minter, gatewayMint, burn intent, unified balance, instant crosschain transfer."
+requirements:
+  runtimes: []
+  connectors: []
 ---
 
 ## Overview
@@ -32,7 +35,7 @@ Canonical source docs for verification:
 - Gateway quickstarts:
   - `https://developers.circle.com/gateway/quickstarts/unified-balance-evm.md`
   - `https://developers.circle.com/gateway/quickstarts/unified-balance-solana.md`
-- Arc tutorial: `https://docs.arc.network/arc/tutorials/access-usdc-crosschain.md`
+- Arc tutorial: `https://docs.arc.io/arc/tutorials/access-usdc-crosschain.md`
 
 ## Quick Reference
 
@@ -58,7 +61,7 @@ Canonical source docs for verification:
 ### Domain IDs (Mainnet)
 
 | Chain | Domain |
-|-------|--------|
+| --- | --- |
 | Ethereum | 0 |
 | Avalanche | 1 |
 | OP | 2 |
@@ -71,11 +74,12 @@ Canonical source docs for verification:
 | World Chain | 14 |
 | Sei | 16 |
 | HyperEVM | 19 |
+| Arc | 26 |
 
 ### Domain IDs (Testnet)
 
 | Chain | Domain |
-|-------|--------|
+| --- | --- |
 | Ethereum Sepolia | 0 |
 | Avalanche Fuji | 1 |
 | OP Sepolia | 2 |

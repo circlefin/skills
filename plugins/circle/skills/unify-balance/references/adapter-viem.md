@@ -356,8 +356,8 @@ const spendWithForwarder = async (): Promise<void> => {
         allocations: { amount: "1.00", chain: "Base_Sepolia" },
       },
       to: {
-        adapter,
         chain: "Arc_Testnet",
+        recipientAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
         useForwarder: true,
       },
       amount: "1.00",

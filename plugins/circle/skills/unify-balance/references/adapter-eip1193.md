@@ -4,6 +4,10 @@ This shows how to use App Kit with EIP-1193 providers using wagmi (ConnectKit, R
 
 > **Note:** The wagmi examples below target `wagmi@^3`.
 
+Use App Kit `>=1.11.0` or Unified Balance Kit `>=1.3.1` with current
+adapters. Do not add Node or `Buffer` polyfills. Keep private keys, Circle
+credentials, and optional App Kit credentials out of browser code.
+
 ## Setup
 
 ```bash

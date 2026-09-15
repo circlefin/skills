@@ -24,7 +24,9 @@ npm install @circle-fin/unified-balance-kit @circle-fin/adapter-viem-v2 viem
 ```
 EVM_PRIVATE_KEY=          # Account owner's private key (hex, 0x-prefixed)
 DELEGATE_ADDRESS=         # Address to authorize as delegate
+DELEGATE_PRIVATE_KEY=     # Delegate's private key (hex, 0x-prefixed) -- signs delegate spends
 DEPOSIT_ACCOUNT=          # Account address to credit (for depositFor)
+SOURCE_ACCOUNT=           # Account owner whose balance the delegate spends from
 ```
 
 ## Deposit For (Using App Kit)

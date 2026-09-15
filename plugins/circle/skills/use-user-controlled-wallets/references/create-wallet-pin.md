@@ -221,7 +221,7 @@ export default function PinWallet({
 ## Error Handling
 
 | Error Code | Meaning | Action |
-|------------|---------|--------|
+| --- | --- | --- |
 | 155106 | User already initialized | Fetch existing wallets instead of creating |
 | 155104 | Invalid user token | Token expired -- call `createUserToken` again |
 | 155101 | User not found | User needs to be created first |

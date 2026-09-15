@@ -115,18 +115,18 @@ function stringifyTypedData<T>(obj: T) {
 async function waitForTxCompletion(txId: string, label: string) {
   const terminalStates = new Set([
     "COMPLETE",
-    "CONFIRMED",
     "FAILED",
     "DENIED",
     "CANCELLED",
   ]);
 
-  while (true) {
+  const deadline = Date.now() + 5 * 60_000;
+  while (Date.now() < deadline) {
     const { data } = await client.getTransaction({ id: txId });
     const state = data?.transaction?.state;
 
     if (state && terminalStates.has(state)) {
-      if (state !== "COMPLETE" && state !== "CONFIRMED") {
+      if (state !== "COMPLETE") {
         throw new Error(`${label} did not complete successfully (state=${state})`);
       }
       return data.transaction;
@@ -134,6 +134,8 @@ async function waitForTxCompletion(txId: string, label: string) {
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
   }
+
+  throw new Error(`${label} did not reach COMPLETE within 5 minutes`);
 }
 
 async function main() {

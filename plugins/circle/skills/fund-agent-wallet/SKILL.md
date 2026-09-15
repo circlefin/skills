@@ -2,6 +2,9 @@
 name: fund-agent-wallet
 description: "Fund a Circle agent wallet with USDC via the `circle` CLI. payments are gas-abstracted. users can pay with USDC only, no ETH required. Covers two top-level paths — fiat on-ramp (buy USDC with USD/credit card) and crypto transfer (send existing USDC to the wallet via QR or direct address). Also covers Gateway deposits (eco vs direct sub-paths) for the Nanopayments balance used by paid services. Use when the user wants to add USDC to their agent wallet, top up after a low balance, deposit into Gateway, or pick the right funding method. Triggers on: fund agent wallet, add USDC, fiat on-ramp, Gateway deposit, eco deposit, direct deposit, top up wallet, withdraw USDC, nanopayments."
 allowed-tools: ["Bash(circle wallet status*)", "Bash(circle wallet list*)", "Bash(circle wallet balance*)", "Bash(circle gateway balance*)", "Bash(circle wallet fund *)", "Bash(circle gateway deposit*)", "Bash(circle gateway withdraw*)", "Bash(circle wallet transfer*)", "Bash(circle bridge transfer*)", "Bash(circle blockchain*)", "Bash(circle feedback submit*)"]
+requirements:
+  runtimes: []
+  connectors: []
 ---
 
 ## Overview
@@ -25,13 +28,13 @@ This skill covers funding both pools. Pick the path with the shortest time-to-re
 circle wallet status
 
 # Get the wallet address
-circle wallet list --chain BASE --type agent --output json
+circle wallet list --chain ARC --type agent --output json
 
 # Check current on-chain balance (per chain)
-circle wallet balance --address <addr> --chain BASE --output json
+circle wallet balance --address <addr> --chain ARC --output json
 
 # Check current Gateway balance (per chain)
-circle gateway balance --address <addr> --chain BASE --output json
+circle gateway balance --address <addr> --chain ARC --output json
 ```
 
 If `circle wallet status` errors with "Not logged in" or "Terms acceptance is required", hand off to the `use-agent-wallet` skill — it covers install, terms, login, and wallet creation.
@@ -44,14 +47,14 @@ Ask the user: *"How would you like to fund your wallet?"*
 - **Existing USDC** — Send USDC from a wallet they already have (MetaMask, Coinbase, Phantom, etc.). Faster and free of on-ramp fees.
 - **Gateway deposit (advanced)** — Move existing on-chain USDC into the Gateway balance for low-latency batched payments. Only useful if the seller they're paying supports Gateway on a specific chain.
 
-**Default recommendation: existing USDC → BASE.** Fastest, lowest friction, and BASE is the most commonly accepted chain across the marketplace.
+**Default recommendation: existing USDC → Arc.** Arc uses USDC as its native gas token (no separate gas asset to hold) and has sub-second finality, so a `direct` Gateway deposit on Arc settles fast — no eco→Polygon hop. Use BASE/Polygon when paying sellers that only accept those chains.
 
 ## Step 2 — Required flags for non-interactive use
 
 The CLI prompts for missing values when run interactively. **Agents are non-interactive**, so every `circle wallet fund` invocation against mainnet MUST include:
 
 - `--address <addr>` — wallet address from `circle wallet list`
-- `--chain <chain>` — e.g. `BASE`
+- `--chain <chain>` — e.g. `ARC` (or `BASE`, `MATIC`, …)
 - `--method <fiat|crypto>` — without it: `Error: --method is required in non-interactive mode.`
 - `--amount <number>` — USDC amount; without it: `Error: --amount is required.`
 
@@ -61,17 +64,7 @@ The CLI prompts for missing values when run interactively. **Agents are non-inte
 
 Opens a fiat on-ramp window in the user's default browser. Funds deposit directly to the wallet on the selected chain.
 
-```bash
-circle wallet fund --address <addr> --chain BASE --amount 25 --token usdc --method fiat --open
-```
-
-The user completes purchase in the on-ramp window. USDC arrives in the wallet on the selected chain after on-ramp settlement (typically minutes for card, longer for bank transfer).
-
-Verify after the user reports purchase complete:
-
-```bash
-circle wallet balance --address <addr> --chain BASE --output json
-```
+READ `references/fiat-on-ramp.md` for the `circle wallet fund --method fiat --open` command, settlement notes, and post-purchase balance verification.
 
 ## Path B — Crypto transfer (existing USDC)
 
@@ -80,7 +73,7 @@ The user already holds USDC somewhere (another wallet, an exchange, etc.) and wa
 ### Recommended — browser-rendered QR (best UX)
 
 ```bash
-circle wallet fund --address <addr> --chain BASE --amount 10 --token usdc --method crypto --open
+circle wallet fund --address <addr> --chain ARC --amount 10 --token usdc --method crypto --open
 ```
 
 `--open` renders the EIP-681 QR code on a local HTML page in the user's default browser. Use this by default. **Terminal-rendered QR codes are frequently truncated or unscannable** inside agent UIs (Claude Code, Codex, etc.); the browser page renders the QR at full resolution and works on both desktop and mobile.
@@ -93,9 +86,7 @@ If the user can't scan a browser QR, READ `references/crypto-transfer-alternativ
 
 ### Verify after transfer
 
-```bash
-circle wallet balance --address <addr> --chain BASE --output json
-```
+Verify with `circle wallet balance` after the transfer confirms — see the "Verify after transfer" section of `references/crypto-transfer-alternatives.md`.
 
 ## Path C — Gateway deposit (powered by Gateway, advanced)
 
@@ -103,7 +94,7 @@ Only suggest a Gateway deposit when:
 
 - The user has on-chain USDC, AND
 - They want to pay a service whose `accepts[]` includes `GatewayWalletBatched` on a specific chain, AND
-- That chain is one Gateway supports (Polygon, BASE, ETH, ARB, OP, AVAX, UNI).
+- That chain is one Gateway supports (Arc, Polygon, BASE, ETH, ARB, OP, AVAX, UNI).
 
 ### Eco vs direct — pick eco unless one of four conditions holds
 
@@ -114,9 +105,9 @@ Use `--method direct` **only** when:
 1. **The user explicitly asked for direct** — e.g. "deposit on BASE without going to Polygon", "stay on BASE", "use direct deposit". Implicit preferences and your own inferences do not count.
 2. **The source chain isn't supported by eco** — eco only supports BASE as a source today; check `circle gateway deposit --help` for the current list. Trying an unsupported source returns "Unknown method" or chain-not-supported.
 3. **The seller does NOT accept Gateway on Polygon** — verify by reading the seller's raw 402 `accepts[]` (not `circle services inspect`). Eco lands on Polygon, so if the seller can't pay there, the Gateway balance won't be reachable for this payment.
-4. **The user already has vanilla on a fast chain the seller accepts** — `direct --chain <fast-chain>` is ~8s **on the fast chains only (MATIC, AVAX)** and skips the eco fee. (e.g., user has 5 USDC vanilla on Polygon → `direct --chain MATIC`.)
+4. **The user already has vanilla on a fast chain the seller accepts** — `direct --chain <fast-chain>` is fast **only on fast-finality chains (Arc, MATIC, AVAX)** and skips the eco fee. (e.g., user has 5 USDC vanilla on Polygon → `direct --chain MATIC`; or vanilla on Arc → `direct --chain ARC`.)
 
-If none of conditions 1–4 holds, **the answer is eco**. Picking direct anyway is slow on BASE: **direct on BASE (and ETH/ARB/OP/UNI) waits ~13–19 minutes for finality** + gas, vs eco's ~30-50s + $0.03. (The ~8s above is MATIC/AVAX only — never quote it for BASE.)
+If none of conditions 1–4 holds, **the answer is eco**. Picking direct anyway is slow on BASE: **direct on BASE (and ETH/ARB/OP/UNI) waits ~13–19 minutes for finality** + gas, vs eco's ~30-50s + $0.03. (The fast timings above are Arc/MATIC/AVAX only — never quote them for BASE.)
 
 ### Compare per-workflow, not per-call
 
@@ -124,14 +115,7 @@ Eco's cold-start (~30-50s + $0.03) is paid **once**; every Gateway call after is
 
 ### Eco deposit (BASE → Polygon)
 
-```bash
-# Deposit (--amount, --address, --chain, --method are all required)
-circle gateway deposit --amount 10 --address <addr> --chain BASE --method eco
-
-# Verify (Gateway balance shows Polygon in the per-chain breakdown)
-circle gateway balance --address <addr> --chain BASE --output json
-# First payment/transfer on a new chain auto-deploys the wallet (see Troubleshooting).
-```
+READ `references/gateway-eco-deposit.md` for the `circle gateway deposit --method eco` command (all of `--amount`, `--address`, `--chain`, `--method` are required) and Gateway balance verification.
 
 Once the deposit verifies, hand off to the `pay-via-agent-wallet` skill for the actual payment — that skill owns the `circle services pay` flow (including its allowed-tools whitelist and gotchas).
 

@@ -1,6 +1,9 @@
 ---
 name: use-smart-contract-platform
 description: "Deploy, import, interact with, and monitor smart contracts using Circle Smart Contract Platform APIs. Supports bytecode deployment, template contracts (ERC-20/721/1155/Airdrop), ABI-based read/write calls, and webhook event monitoring. Keywords: contract deployment, smart contract, ABI interactions, template contracts, event monitoring, contract webhooks, bytecode, ERC-1155, ERC-20, ERC-721."
+requirements:
+  runtimes: []
+  connectors: []
 ---
 
 ## Overview
@@ -44,9 +47,9 @@ const walletsClient = initiateDeveloperControlledWalletsClient({
 ### Supported Blockchains
 
 | Chain | Mainnet | Testnet |
-|-------|---------|---------|
+| --- | --- | --- |
 | Arbitrum | `ARB` | `ARB-SEPOLIA` |
-| Arc | -- | `ARC-TESTNET` |
+| Arc | `ARC` | `ARC-TESTNET` |
 | Avalanche | `AVAX` | `AVAX-FUJI` |
 | Base | `BASE` | `BASE-SEPOLIA` |
 | Ethereum | `ETH` | `ETH-SEPOLIA` |
@@ -55,10 +58,12 @@ const walletsClient = initiateDeveloperControlledWalletsClient({
 | Polygon PoS | `MATIC` | `MATIC-AMOY` |
 | Unichain | `UNI` | `UNI-SEPOLIA` |
 
+The `references/` examples use Arc Testnet (`blockchain: 'ARC-TESTNET'`); for **Arc mainnet**, pass `blockchain: 'ARC'`. The Arc USDC address `0x3600000000000000000000000000000000000000` is the same on both networks.
+
 ### Contract Templates
 
 | Template | Standard | Template ID | Use Case |
-|----------|----------|-------------|----------|
+| --- | --- | --- | --- |
 | Token | ERC-20 | `a1b74add-23e0-4712-88d1-6b3009e85a86` | Fungible tokens, loyalty points |
 | NFT | ERC-721 | `76b83278-50e2-4006-8b63-5b1a2a814533` | Digital collectibles, gaming assets |
 | Multi-Token | ERC-1155 | `aea21da6-0aa2-4971-9a1a-5098842b1248` | Mixed fungible/non-fungible tokens |
@@ -102,7 +107,7 @@ Contract deployment is asynchronous. The response indicates initiation only. Pol
 
 ### EVM Version Constraint
 
-Compile Solidity with `evmVersion: "paris"` or earlier to avoid the `PUSH0` opcode. Solidity >= 0.8.20 defaults to Shanghai. Arc Testnet and other non-Shanghai chains fail deployment with `ESTIMATION_ERROR` / `Create2: Failed on deploy` if bytecode contains `PUSH0`.
+Compile Solidity with `evmVersion: "paris"` or earlier to avoid the `PUSH0` opcode. Solidity >= 0.8.20 defaults to Shanghai. Arc and other non-Shanghai chains fail deployment with `ESTIMATION_ERROR` / `Create2: Failed on deploy` if bytecode contains `PUSH0`.
 
 ### Transaction Lifecycle
 
@@ -132,7 +137,7 @@ For debugging failed transactions, see [Transaction States and Errors](https://d
 ### Error Handling
 
 | Error Code | Meaning | Action |
-|------------|---------|--------|
+| --- | --- | --- |
 | 175001 | Contract not found | Verify the contract ID exists; if imported, check it wasn't archived |
 | 175003 | Constructor parameter mismatch | Check parameter count and types exactly match the contract ABI definition |
 | 175004 | Duplicate contract | Call `listContracts({ blockchain })`, match by `contractAddress` (case-insensitive), use the existing `contractId` |

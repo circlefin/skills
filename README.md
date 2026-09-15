@@ -28,19 +28,19 @@ npx skills add circlefin/skills
 ## Skills
 
 | Skill | Description |
-|-------|-------------|
+| --- | --- |
 | [`accept-agent-payments`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/accept-agent-payments/SKILL.md) | Monetize an HTTP endpoint for agents with USDC pay-per-call payments. Defaults to Gateway Nanopayments, covers x402 seller integration, paid-call verification, and Agent Marketplace listing prep. |
 | [`use-usdc`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-usdc/SKILL.md) | Interact with USDC on EVM chains and Solana. Check balances, send transfers, approve spending, and verify transactions. |
-| [`bridge-stablecoin`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/bridge-stablecoin/SKILL.md) | Crosschain USDC transfers using CCTP (Crosschain Transfer Protocol). Includes UX patterns, progress tracking, and Bridge Kit SDK implementation. |
+| [`bridge-stablecoin`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/bridge-stablecoin/SKILL.md) | Browser- and server-side crosschain USDC transfers using CCTP. Includes wallet-provider adapters, UX patterns, progress tracking, and App Kit or Bridge Kit implementation. |
 | [`use-arc`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-arc/SKILL.md) | Build on Arc, Circle's blockchain where USDC is the native gas token. Covers chain configuration, contract deployment, and bridging USDC to Arc via CCTP. |
 | [`use-circle-wallets`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-circle-wallets/SKILL.md) | Choose the right Circle wallet type. Compares developer-controlled, user-controlled, and modular (passkey) wallets across custody model, key management, and use cases. |
 | [`use-developer-controlled-wallets`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-developer-controlled-wallets/SKILL.md) | Developer-controlled wallets for custodial flows like payouts, treasury management, and automation. Developers manage wallet creation and key storage. |
 | [`use-gateway`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-gateway/SKILL.md) | Unified USDC balance across chains with instant crosschain transfers (<500ms). Supports EVM and Solana with deposit, balance query, and transfer workflows. |
-| [`unify-balance`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/unify-balance/SKILL.md) | Manage a unified cross-chain USDC balance with Circle's Unified Balance Kit (or App Kit). Abstracts Gateway deposit, spend, and balance queries across EVM and Solana into simple SDK calls — no direct contract interaction or attestation handling. |
+| [`unify-balance`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/unify-balance/SKILL.md) | Manage a unified cross-chain USDC balance in browser or server apps with Unified Balance Kit (or App Kit). Abstracts Gateway deposit, spend, and balance queries across EVM and Solana into simple SDK calls. |
 | [`use-modular-wallets`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-modular-wallets/SKILL.md) | Smart contract wallets with passkey authentication, gasless transactions, and modular architecture. Supports ERC-4337 account abstraction. |
 | [`use-smart-contract-platform`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-smart-contract-platform/SKILL.md) | Deploy, import, interact with, and monitor smart contracts using Circle's Smart Contract Platform. Supports bytecode deployment, template contracts (ERC-20/721/1155), ABI-based read/write calls, and event monitoring. |
 | [`use-user-controlled-wallets`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-user-controlled-wallets/SKILL.md) | Embedded wallets where users control their own assets. Supports Web2-like login (Google, Facebook, Apple, email OTP, PIN) without seed phrases. |
-| [`swap-tokens`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/swap-tokens/SKILL.md) | Build token swap functionality with Circle App Kit or standalone Swap Kit. Supports same-chain swaps, slippage configuration, swap fee collection, and cross-chain token movement by combining swap and bridge calls. |
+| [`swap-tokens`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/swap-tokens/SKILL.md) | Build keyless token swaps in browser or server apps with App Kit or standalone Swap Kit. Supports wallet-provider adapters, same-chain and direct cross-chain swaps, slippage, status tracking, and custom fees. |
 | [`use-circle-cli`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-circle-cli/SKILL.md) | **Master skill for the Circle CLI (`@circle-fin/cli`)** — a holistic stablecoin CLI for AI agents. Covers the full command surface (wallet, bridge, gateway, services, contract, transaction, skill, terms, blockchain, telemetry) at a high level and routes to dedicated agent-wallet skills for deep flows. Use this as the front door whenever the user is exploring or doing CLI work that doesn't fit a narrower skill yet. |
 | [`use-agent-wallet`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-agent-wallet/SKILL.md) | Set up and manage a Circle agent wallet via the `circle` CLI. Covers install verification, Terms-of-Use acceptance, email + OTP login, wallet creation, session status, and balance inspection — the bootstrap surface for AI agents using Circle to pay for x402 services. |
 | [`pay-via-agent-wallet`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/pay-via-agent-wallet/SKILL.md) | Pay for paid x402 services via the Circle agent wallet. Covers the discover → inspect → pay flow with chain selection guidance for Gateway and vanilla x402 schemes, including common gotchas like seller-driven chain rejection and provider-specific schema validation. |
@@ -52,7 +52,7 @@ npx skills add circlefin/skills
 Skills contain stable patterns (architecture decisions, UX guidance, common mistakes). For ground-truth details that change frequently (e.g., SDK method signatures, contract addresses, chain IDs) use Circle's MCP server alongside skills.
 
 | Client | Setup |
-|--------|-------|
+| --- | --- |
 | **Cursor** | Add to `~/.cursor/mcp.json` |
 | **Claude Code** | `claude mcp add --transport http circle https://api.circle.com/v1/codegen/mcp --scope user` |
 | **Codex** | `codex mcp add circle --url https://api.circle.com/v1/codegen/mcp` |
@@ -102,7 +102,7 @@ No. Skills work standalone. MCP adds accuracy for SDK details that change betwee
 
 ## Resources
 - [Circle Developer Docs](https://developers.circle.com)
-- [Arc Docs](https://docs.arc.network)
+- [Arc Docs](https://docs.arc.io)
 - [Circle MCP Server](https://developers.circle.com/ai/mcp)
 - [Testnet Faucet](https://faucet.circle.com)
 - [USDC Contract Addresses](https://developers.circle.com/stablecoins/usdc-contract-addresses)

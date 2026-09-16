@@ -53,6 +53,8 @@ const bundlerClient = createBundlerClient({
 })
 ```
 
+**Arc mainnet:** import `arc` instead of `arcTestnet` from `viem/chains`, use the `` `${clientUrl}/arc` `` transport path, and pass the Arc USDC address `0x3600000000000000000000000000000000000000` directly to `encodeTransfer` (it is the same address on Arc mainnet and testnet). The SDK's `ContractAddress` enum currently exposes only `ArcTestnet_USDC`, so use the literal address for mainnet until an `Arc_USDC` constant ships.
+
 ## Register a Passkey
 
 ```typescript

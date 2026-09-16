@@ -1,7 +1,7 @@
 # Funding troubleshooting
 
 | Error | What it means | Fix |
-|---|---|---|
+| --- | --- | --- |
 | `Error: --method is required in non-interactive mode.` | Forgot `--method` | Re-run with `--method fiat` or `--method crypto` |
 | `Error: --amount is required.` | Forgot `--amount` | Re-run with `--amount <number>` (USDC amount) |
 | Terminal QR truncated or unscannable | Agent UIs can't render QR codes reliably | Re-run with `--open` (browser QR) or `--export ~/Downloads` (PNG file) |

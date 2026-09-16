@@ -1,6 +1,9 @@
 ---
 name: use-usdc
 description: "USDC is Circle's stablecoin deployed across multiple blockchain ecosystems including EVM chains (Ethereum, Base, Arbitrum, Polygon, Arc) and Solana. Use this skill to check balances, send transfers, approve spending, and verify transactions. Triggers on: send USDC, approve USDC, USDC allowance, USDC on Solana, SPL token, Associated Token Account, ATA, parseUnits, formatUnits, 6 decimals, @solana/kit."
+requirements:
+  runtimes: []
+  connectors: []
 ---
 
 ## Overview
@@ -46,7 +49,7 @@ Canonical source: https://developers.circle.com/stablecoins/usdc-contract-addres
 #### EVM Testnet
 
 | Chain | Chain ID | USDC Address |
-|-------|----------|-------------|
+| --- | --- | --- |
 | Arc Testnet | 5042002 | `0x3600000000000000000000000000000000000000` |
 | Ethereum Sepolia | 11155111 | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
 | Base Sepolia | 84532 | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
@@ -60,7 +63,8 @@ Get testnet USDC: https://faucet.circle.com
 #### EVM Mainnet
 
 | Chain | USDC Address |
-|-------|-------------|
+| --- | --- |
+| Arc | `0x3600000000000000000000000000000000000000` |
 | Ethereum | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
 | Base | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 | Arbitrum | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
@@ -71,7 +75,7 @@ Get testnet USDC: https://faucet.circle.com
 #### Solana
 
 | Network | USDC Mint |
-|---------|-----------|
+| --- | --- |
 | Devnet | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` |
 | Mainnet | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
 
@@ -93,7 +97,7 @@ const human = rawAmount / 1_000_000;          // 1.0 (CORRECT - converts back to
 On Arc, USDC is both the **native gas token** and an **ERC-20** at `0x3600...`. Same underlying balance, different decimal exposure.
 
 | Context | Decimals | Use |
-|---------|----------|-----|
+| --- | --- | --- |
 | Native (gas, `msg.value`) | 18 | Gas estimation only |
 | ERC-20 (`balanceOf`, `transfer`, `approve`) | 6 | All USDC logic |
 
@@ -124,7 +128,7 @@ Find troubleshooting solutions in the Common Issues section of the chain-specifi
 ### EVM vs Solana at a Glance
 
 | Aspect | EVM | Solana |
-|--------|-----|--------|
+| --- | --- | --- |
 | Token standard | ERC-20 | SPL Token |
 | Balance storage | Wallet address directly | Associated Token Account (ATA) |
 | Send | `transfer(to, amount)` | `getTransferInstruction({ source, destination, authority, amount })` |
@@ -134,6 +138,15 @@ Find troubleshooting solutions in the Common Issues section of the chain-specifi
 | Confirmation | `waitForTransactionReceipt` | `sendAndConfirmTransactionFactory` |
 | Libraries | viem | @solana/kit + @solana-program/token |
 | Decimals | 6 | 6 |
+
+## Workflow
+
+1. **Determine the ecosystem** -- EVM (`0x...`) or Solana (base58); ask if unclear (see Prerequisites / Setup).
+2. **Classify the operation** -- a read (balance, allowance, supply, verify) runs autonomously; a write (send, approve) requires explicit user confirmation.
+3. **Confirm details** -- for a write, validate the recipient address, amount (6 decimals), and chain ID (testnet vs mainnet). Default to testnet; warn on mainnet or amounts over the safety threshold.
+4. **Route to the reference** -- READ `references/evm.md` or `references/solana.md` for the exact code (on Solana, create the recipient ATA first).
+5. **Execute** -- run the read, or submit the write only after confirmation, using the correct native USDC address for the chain.
+6. **Verify** -- wait for the transaction receipt/confirmation before reporting success, and surface the tx hash.
 
 ## Implementation Patterns
 

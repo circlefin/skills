@@ -17,8 +17,14 @@ npm install @circle-fin/swap-kit @circle-fin/adapter-circle-wallets
 ```
 CIRCLE_API_KEY=           # Circle API key (for Circle Wallets adapter)
 CIRCLE_ENTITY_SECRET=     # Entity secret (for Circle Wallets adapter)
-KIT_KEY=                  # Kit key from Circle Developer Console
+WALLET_ADDRESS=           # Circle wallet address to swap from
+KIT_KEY=                  # Optional; server-side authenticated swap requests only
 ```
+
+The Circle Wallets adapter and its credentials remain server-only. The swap
+request itself can be permissionless, so these examples omit `kitKey`. A server
+may add `config: { kitKey: process.env.KIT_KEY }` when authenticated requests
+are needed.
 
 ## Using App Kit
 
@@ -55,9 +61,6 @@ const swapTokens = async (): Promise<void> => {
       tokenIn: "USDT",
       tokenOut: "USDC",
       amountIn: "1.00",
-      config: {
-        kitKey: process.env.KIT_KEY as string,
-      },
     });
 
     console.log("RESULT", inspect(result, false, null, true));
@@ -104,9 +107,6 @@ const swapTokens = async (): Promise<void> => {
       tokenIn: "USDT",
       tokenOut: "USDC",
       amountIn: "1.00",
-      config: {
-        kitKey: process.env.KIT_KEY as string,
-      },
     });
 
     console.log("RESULT", inspect(result, false, null, true));

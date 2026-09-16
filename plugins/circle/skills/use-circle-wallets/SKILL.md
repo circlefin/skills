@@ -1,6 +1,9 @@
 ---
 name: use-circle-wallets
 description: "Choose and implement the right Circle wallet type for your application. Compares developer-controlled, user-controlled, and modular (passkey) wallets across custody model, key management, account types, blockchain support, and use cases. Use whenever blockchain wallet integrations are required for onchain application development. Triggers on: which wallet, choose wallet, wallet comparison, EOA vs SCA vs Modular Wallet, custody model, programmable wallets."
+requirements:
+  runtimes: []
+  connectors: []
 ---
 
 ## Overview
@@ -9,14 +12,14 @@ Circle offers three wallet types -- developer-controlled, user-controlled, and m
 
 ## Quick Comparison
 
-|                     | Developer-Controlled              | User-Controlled                | Modular (Passkey)                         |
-|---------------------|-----------------------------------|--------------------------------|-------------------------------------------|
-| **Custody**         | Developer                         | User                           | User                                      |
-| **Auth**            | API key + entity secret (backend) | Social login / email OTP / PIN | Passkey (WebAuthn)                        |
-| **Account types**   | EOA, SCA                          | EOA, SCA                       | Modular Wallet SCA (ERC-6900)             |
-| **Gas sponsorship** | SCA via Circle Paymaster          | SCA via Circle Paymaster       | Circle Paymaster or third-party paymaster |
-| **Custom modules**  | No                                | No                             | Yes                                       |
-| **Architecture**    | Backend SDK only                  | Backend + frontend SDKs        | Frontend SDK only                         |
+|  | Developer-Controlled | User-Controlled | Modular (Passkey) |
+| --- | --- | --- | --- |
+| **Custody** | Developer | User | User |
+| **Auth** | API key + entity secret (backend) | Social login / email OTP / PIN | Passkey (WebAuthn) |
+| **Account types** | EOA, SCA | EOA, SCA | Modular Wallet SCA (ERC-6900) |
+| **Gas sponsorship** | SCA via Circle Paymaster | SCA via Circle Paymaster | Circle Paymaster or third-party paymaster |
+| **Custom modules** | No | No | Yes |
+| **Architecture** | Backend SDK only | Backend + frontend SDKs | Frontend SDK only |
 
 ## Decision Guide
 
@@ -24,32 +27,23 @@ For the latest supported account types on different blockchains: https://develop
 
 For the latest supported features on different blockchains: https://developers.circle.com/wallets/supported-blockchains
 
-**Step 1 -- Who controls the keys / who is the custodian?**
-- Developer controls -> Developer-controlled wallets -> Step 3
-- End user controls -> Step 2
+1. **Who controls the keys / who is the custodian?**
+   - Developer controls -> Developer-controlled wallets -> step 3
+   - End user controls -> step 2
+2. **Auth method?**
+   - Passkey (WebAuthn biometric) with extensible modules -> Modular wallets -> step 4
+   - Social login, email OTP, or PIN -> User-controlled wallets -> step 3
+3. **Account type?**
+   - Solana, Aptos, or NEAR -> EOA (only option)
+   - Ethereum mainnet -> EOA (SCA gas costs prohibitive, Modular Wallet not supported)
+   - L2 (Arbitrum, Base, Polygon, Optimism, etc.) -> EOA if max TPS needed; SCA if gas sponsorship or batching needed; Modular Wallet if passkey or other modular plugins needed
+4. **Chain check (Modular wallets)**
+   - Supported: Arbitrum, Avalanche, Base, Monad, Optimism, Polygon, Unichain
+   - NOT supported: Ethereum, Solana, Aptos, NEAR. Fall back to user-controlled wallets with SCA.
 
-**Step 2 -- Auth method?**
-- Passkey (WebAuthn biometric) with extensible modules -> Modular wallets -> Step 4
-- Social login, email OTP, or PIN -> User-controlled wallets -> Step 3
+### Example scenarios
 
-**Step 3 -- Account type?**
-- Solana, Aptos, or NEAR -> EOA (only option)
-- Ethereum mainnet -> EOA (SCA gas costs prohibitive, Modular Wallet not supported)
-- L2 (Arbitrum, Base, Polygon, Optimism, etc.) -> EOA if max TPS needed; SCA if gas sponsorship or batching needed; Modular Wallet if passkey or other modular plugins needed
-
-**Step 4 -- Chain check (Modular wallets)**
-- Supported: Arbitrum, Avalanche, Base, Monad, Optimism, Polygon, Unichain
-- NOT supported: Ethereum, Solana, Aptos, NEAR. Fall back to user-controlled wallets with SCA.
-
-### Example Scenarios
-
-| Scenario                                         | Decision                    | Skill                              |
-|--------------------------------------------------|-----------------------------|------------------------------------|
-| Payment backend, programmatic payouts, high TPS  | Developer-controlled + EOA  | `use-developer-controlled-wallets` |
-| Consumer app with Google/Apple login, gasless UX | User-controlled + SCA on L2 | `use-user-controlled-wallets`      |
-| DeFi app with biometric auth, custom modules     | Modular Wallet on L2        | `use-modular-wallets`              |
-| NFT marketplace on Ethereum L1                   | User-controlled + EOA       | `use-user-controlled-wallets`      |
-| AI agent, autonomous multi-chain transactions    | Developer-controlled + EOA  | `use-developer-controlled-wallets` |
+READ `references/example-scenarios.md` for common scenarios mapped to a wallet-type decision and the skill to implement it.
 
 ## Implementation Patterns
 
@@ -66,6 +60,16 @@ Once a wallet type has been determined, TRIGGER the corresponding skill:
 - ALWAYS prefer SCA or Modular Wallet on L2 chains (Arbitrum, Base, Polygon, Optimism, etc.) when gas sponsorship or batch operations are needed.
 - NEVER mix wallet types in a single user flow -- pick one and use its corresponding skill.
 - ALWAYS delegate to the specific wallet skill (`use-developer-controlled-wallets`, `use-user-controlled-wallets`, or `use-modular-wallets`) for implementation.
+
+## Safety & Escalation
+
+This skill only **recommends** a wallet type; it performs no on-chain writes, transfers, signing, or key operations itself. Every side effect — creating a wallet, signing, sending funds, deploying a contract — happens in the delegated implementation skill, which owns confirmation for those actions.
+
+Escalate before delegating when:
+- **Missing context** — the custody model, target chain, or auth method is unclear. Ask the user; do not guess a wallet type.
+- **Missing access** — the user lacks a Circle account, an API key + entity secret (developer-controlled), or a configured passkey domain (modular). Direct them to set that up first.
+- **Unsafe effects** — the selected path will move real funds on mainnet. Flag that the implementation skill must obtain explicit user confirmation before any mainnet transaction.
+- **User approval** — confirm the chosen wallet type with the user before handing off to the implementation skill.
 
 ## Reference Links
 

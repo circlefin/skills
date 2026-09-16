@@ -217,7 +217,7 @@ Confirm transaction? (yes/no)
 ```ts
 const transferInstruction = getTransferInstruction({
   source: senderATA,
-  destination: recipientATA, // Must exist — use getOrCreateAssociatedTokenAccount if unsure
+  destination: recipientATA, // Must exist — create with getCreateAssociatedTokenIdempotentInstruction if unsure
   authority: senderKeypair,
   amount: AMOUNT,
 });
@@ -275,10 +275,10 @@ for (const sig of signatures) {
 ## SPL Token Method Reference
 
 | Method | Package | Purpose |
-|--------|---------| --------|
+| --- | --- | --- |
 | `findAssociatedTokenPda({ mint, owner, tokenProgram })` | `@solana-program/token` | Derive ATA address |
 | `getTransferInstruction({ source, destination, authority, amount })` | `@solana-program/token` | Build transfer instruction |
-| `getOrCreateAssociatedTokenAccount(...)` | `@solana-program/token` | Get or create ATA (sends tx if needed) |
+| `getCreateAssociatedTokenIdempotentInstruction({ payer, ata, owner, mint })` | `@solana-program/token` | Create ATA if missing (idempotent — no-op if it already exists) |
 | `createSolanaRpc(url)` | `@solana/kit` | Create RPC client |
 | `sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions })` | `@solana/kit` | Build send+confirm helper |
 | `getSignatureFromTransaction(tx)` | `@solana/kit` | Extract signature from signed tx |
@@ -298,7 +298,7 @@ for (const sig of signatures) {
 ### "Recipient ATA doesn't exist"
 - Check if recipient ATA exists with `getAccountInfo`
 - If doesn't exist, surface ~0.002 SOL creation cost in preview
-- Use `getOrCreateAssociatedTokenAccount` to create it automatically
+- Include `getCreateAssociatedTokenIdempotentInstruction` in the transaction to create it (idempotent — no-op if it already exists)
 
 ### "Wrong decimal places" / "Amount too large"
 - Use `Math.floor(amount * 1_000_000)` — Solana USDC is 6 decimals, not 9

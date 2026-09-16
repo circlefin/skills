@@ -2,6 +2,9 @@
 name: recover-eco-funds
 description: "Recover USDC from a legacy Circle CLI Gateway `--method eco` deposit whose fixed refund recipient is the SCA's backing EOA. Use this skill for legacy Eco intents that are stuck, expired, waiting for refund, refunded to `eoaOwnerAddress`, missing from Gateway, or need a permissionless self-refund. Do not use its executable recovery phases for current Gateway v2 deposits, which set `refundRecipient` to the SCA. It covers calling Eco's Portal `refund(...)` with exact onchain intent data, then moving refunded USDC from the backing EOA to the linked SCA with ERC-3009, relayed by the SCA so the backing EOA needs no gas."
 allowed-tools: ["Read", "Bash(mkdir -p ./eco-recovery-evidence)", "Bash(circle --version)", "Bash(circle wallet status --output json)", "Bash(circle gateway deposit --help)", "Bash(circle wallet execute --help)", "Bash(circle contract query --help)", "Bash(circle wallet list --chain * --type agent --output json)", "Bash(circle wallet balance --address * --chain * --output json)", "Bash(circle gateway balance --address * --chain * --output json)", "Bash(circle transaction list --address * --chain * --operation transfer --tx-type outbound --state confirmed --output json)", "Bash(curl -fsS \"https://api.eco.com/circle-gateway/v2/depositAddresses/*\")", "Bash(curl -fsS --request POST --url https://quotes.eco.com/api/v3/intents/intentStatus --header \"Content-Type: application/json\" --data '{\"intentHash\":\"*\"}')", "Bash(curl -fsS --request POST --url https://quotes.eco.com/api/v3/intents/intentStatus --header \"Content-Type: application/json\" --data '{\"intentCreatedHash\":\"*\"}')", "Bash(*/node_modules/.bin/tsx */scripts/eco-self-refund.mjs *)", "Bash(*/node_modules/.bin/tsx */scripts/eoa-to-sca.mjs *)"]
+requirements:
+  runtimes: [node]
+  connectors: []
 ---
 
 # Recover Legacy Eco Funds
@@ -142,7 +145,7 @@ These APIs are supporting evidence. If the response says `WaitingForRefund`, con
 Classify the state:
 
 | Observed state | Action |
-|---|---|
+| --- | --- |
 | Intent still before deadline | Wait or escalate; do not refund |
 | Intent fulfilled/completed | Reconcile Gateway or destination funds; do not refund |
 | Legacy intent, deadline passed, unfulfilled, vault funded | Run the Eco self-refund leg |

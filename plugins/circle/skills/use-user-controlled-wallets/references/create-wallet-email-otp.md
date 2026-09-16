@@ -235,7 +235,7 @@ export default function EmailOtpWallet({
 ## Error Handling
 
 | Error Code | Meaning | Action |
-|------------|---------|--------|
+| --- | --- | --- |
 | 155106 | User already initialized | Fetch existing wallets instead of creating |
 | 155104 | Invalid user token | Re-authenticate user via OTP |
 | 155101 | Invalid device token | Request new OTP |

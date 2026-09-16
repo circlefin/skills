@@ -1,6 +1,9 @@
 ---
 name: use-modular-wallets
 description: "Build crypto wallets using Circle Modular Wallets SDK with passkey authentication, gasless transactions, and extensible module architecture. Use when: creating crypto wallets with passkey-based (WebAuthn) registration and login, sending gasless transactions using Circle Gas Station paymaster, batching multiple transactions into a single user operation, implementing passkey recovery using BIP-39 mnemonic phrases, building advanced onchain wallets with custom modules (multisig, subscriptions, session keys). Triggers on: MSCA, passkey authentication, WebAuthn, paymaster, Gas Station, ERC-4337, ERC-6900, toCircleSmartAccount, toModularTransport, sendUserOperation, 2D nonce, passkey recovery, EIP-1193 provider."
+requirements:
+  runtimes: []
+  connectors: []
 ---
 
 ## Overview
@@ -13,11 +16,7 @@ Modular Wallets are flexible smart contract accounts (MSCAs) that extend functio
 
 ```bash
 npm install @circle-fin/modular-wallets-core viem
-```
-
-For passkey recovery, also install:
-
-```bash
+# Passkey recovery also needs bip39:
 npm install bip39
 ```
 
@@ -36,18 +35,19 @@ VITE_CLIENT_URL=https://modular-sdk.circle.com/v1/rpc/w3s/buidl
 
 Use the `NEXT_PUBLIC_*` pair for Next.js or the `VITE_*` pair for Vite — not both. Client URL is fixed — do not ask the user to copy it from Console. Chain paths (e.g. `/arcTestnet`) are appended in code via `toModularTransport`, not in the env var.
 
-Before using the SDK, complete the [Console Setup](https://developers.circle.com/wallets/modular/console-setup.md):
+Before using the SDK, complete setup (see [Console Setup](https://developers.circle.com/wallets/modular/console-setup.md)):
 
-1. Console → Keys → Client Keys — create a Client Key
-2. Configure the Passkey Domain (passkeys are domain-bound)
+1. Install the SDK and set the client env vars (see Installation and Environment Variables above).
+2. In Console → Keys → Client Keys, create a Client Key.
+3. Configure the Passkey Domain (passkeys are domain-bound).
 
 ## Quick Reference
 
 ### Supported Chains
 
 | Chain | Mainnet | Testnet |
-|-------|---------|---------|
-| Arc | No | Yes |
+| --- | --- | --- |
+| Arc | Yes | Yes |
 | Arbitrum | Yes | Yes |
 | Avalanche | Yes | Yes |
 | Base | Yes | Yes |
@@ -63,9 +63,9 @@ For the latest supported blockchains: https://developers.circle.com/wallets/acco
 The `toModularTransport` URL requires the chain path segment appended to the client URL:
 
 | Chain | Mainnet Path | Testnet Path |
-|-------|-------------|-------------|
+| --- | --- | --- |
 | Arbitrum | `/arbitrum` | `/arbitrumSepolia` |
-| Arc | -- | `/arcTestnet` |
+| Arc | `/arc` | `/arcTestnet` |
 | Avalanche | `/avalanche` | `/avalancheFuji` |
 | Base | `/base` | `/baseSepolia` |
 | Monad | `/monad` | `/monadTestnet` |
@@ -113,7 +113,7 @@ User operations submitted via `sendUserOperation` follow an asynchronous state m
 ## Error Handling
 
 | Error Code | Meaning | Action |
-|------------|---------|--------|
+| --- | --- | --- |
 | `NotAllowedError` | User cancelled the passkey prompt or timed out | Re-prompt the user; for login, confirm a credential exists for this domain |
 | `SecurityError` | Passkey domain mismatch -- bound to a different origin | Verify app domain matches Passkey Domain in Circle Console |
 | `InvalidStateError` | Credential already registered (duplicate registration) | Switch to `WebAuthnMode.Login` instead of `Register` |
@@ -147,7 +147,7 @@ Passkey errors (`NotAllowedError`, `SecurityError`, `InvalidStateError`) are sta
 ### Best Practices
 
 - ALWAYS read the correct reference files before implementing.
-- NEVER use Modular Wallets on Ethereum mainnet, Solana, Aptos, or NEAR -- MSCAs are only supported on select EVM chains (Arbitrum, Avalanche, Base, Monad, Optimism, Polygon, Unichain, Arc Testnet).
+- NEVER use Modular Wallets on Ethereum mainnet, Solana, Aptos, or NEAR -- MSCAs are only supported on select EVM chains (Arbitrum, Avalanche, Base, Monad, Optimism, Polygon, Unichain, Arc).
 - ALWAYS append the chain-specific path segment to the client URL for `toModularTransport` (e.g., `${clientUrl}/polygonAmoy`).
 - ALWAYS use `parseUnits(value, 6)` for USDC amounts (6 decimals, not 18).
 - ALWAYS pass `paymaster: true` to sponsor gas via Circle Gas Station.

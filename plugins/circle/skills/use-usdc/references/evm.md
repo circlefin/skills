@@ -27,6 +27,7 @@ chmod 600 ~/.ethereum/keys/testnet.key
 
 ```ts
 import fs from "fs";
+import path from "path";
 import { privateKeyToAccount } from "viem/accounts";
 
 const privateKey = fs.readFileSync(
@@ -92,7 +93,7 @@ console.log(`USDC Balance: ${formattedBalance} USDC`);
 console.log(`Address: 0xYourAddress`);
 console.log(`Chain: Arc Testnet (5042002)`);
 console.log(`Contract: ${USDC}`);
-console.log(`Explorer: https://explorer.arc-testnet.io/address/0xYourAddress`);
+console.log(`Explorer: https://explorer.testnet.arc.io/address/0xYourAddress`);
 ```
 
 **Expected output:**
@@ -101,7 +102,7 @@ USDC Balance: 10.50 USDC
 Address: 0xYourAddress
 Chain: Arc Testnet (5042002)
 Contract: 0x3600000000000000000000000000000000000000
-Explorer: https://explorer.arc-testnet.io/address/0xYourAddress
+Explorer: https://explorer.testnet.arc.io/address/0xYourAddress
 ```
 
 **Always format with 6 decimals — never 18.**
@@ -223,7 +224,7 @@ const hash = await walletClient.writeContract({
 });
 
 console.log(`Transaction submitted: ${hash}`);
-console.log(`Explorer: https://explorer.arc-testnet.io/tx/${hash}`);
+console.log(`Explorer: https://explorer.testnet.arc.io/tx/${hash}`);
 
 // Wait for confirmation
 const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -324,7 +325,7 @@ for (const log of logs) {
   console.log(`Received ${amount} USDC from ${from}`);
   console.log(`  Block: ${log.blockNumber}`);
   console.log(`  Tx: ${log.transactionHash}`);
-  console.log(`  Explorer: https://explorer.arc-testnet.io/tx/${log.transactionHash}`);
+  console.log(`  Explorer: https://explorer.testnet.arc.io/tx/${log.transactionHash}`);
 }
 ```
 
@@ -335,7 +336,7 @@ Narrow `fromBlock` to reduce RPC load. Check block explorers for recent block nu
 ## ERC-20 Method Reference
 
 | Method | Type | Signature | Notes |
-|--------|------|-----------|-------|
+| --- | --- | --- | --- |
 | `balanceOf` | Read | `(owner) → uint256` | Raw 6-decimal bigint |
 | `allowance` | Read | `(owner, spender) → uint256` | Check before protocol interactions |
 | `totalSupply` | Read | `() → uint256` | Total USDC on this chain |

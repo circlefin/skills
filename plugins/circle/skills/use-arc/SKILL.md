@@ -1,6 +1,9 @@
 ---
 name: use-arc
-description: "Provide instructions on how to build with Arc, Circle's blockchain where USDC is the native gas token. Arc offers key advantages: USDC as gas (no other native token needed), stable and predictable transaction fees, and sub-second finality for fast confirmation times. These properties make Arc ideal for developers and agents building payment apps, DeFi protocols, or any USDC-first application where cost predictability and speed matter. Use skill when Arc or Arc Testnet is mentioned, working with any smart contracts related to Arc, configuring Arc in blockchain projects, bridging USDC to Arc via CCTP, or building USDC-first applications. Triggers: Arc, Arc Testnet, USDC gas, deploy to Arc, Arc chain, stable fees, fast finality."
+description: "Provide instructions on how to build with Arc, Circle's blockchain where USDC is the native gas token. Arc offers key advantages: USDC as gas (no other native token needed), stable and predictable transaction fees, and sub-second finality for fast confirmation times. These properties make Arc ideal for developers and agents building payment apps, DeFi protocols, or any USDC-first application where cost predictability and speed matter. Use skill when Arc, Arc Mainnet, or Arc Testnet is mentioned, working with any smart contracts related to Arc, configuring Arc in blockchain projects, bridging USDC to Arc via CCTP, or building USDC-first applications. Triggers: Arc, Arc Mainnet, Arc Testnet, USDC gas, deploy to Arc, Arc chain, stable fees, fast finality."
+requirements:
+  runtimes: []
+  connectors: []
 ---
 
 ## Overview
@@ -16,7 +19,8 @@ Get testnet USDC from https://faucet.circle.com before sending any transactions.
 ### Environment Variables
 
 ```bash
-ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+ARC_MAINNET_RPC_URL=https://rpc.mainnet.arc.io
+ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.io
 PRIVATE_KEY=         # Deployer wallet private key
 ```
 
@@ -24,22 +28,25 @@ PRIVATE_KEY=         # Deployer wallet private key
 
 ### Network Details
 
-| Field | Value |
-|-------|-------|
-| Network | Arc Testnet |
-| Chain ID | `5042002` (hex: `0x4CEF52`) |
-| RPC | `https://rpc.testnet.arc.network` |
-| WebSocket | `wss://rpc.testnet.arc.network` |
-| Explorer | https://testnet.arcscan.app |
-| Faucet | https://faucet.circle.com |
-| CCTP Domain | `26` |
+| Field | Arc (Mainnet) | Arc Testnet |
+| --- | --- | --- |
+| Chain ID | `5042` (hex: `0x13B2`) | `5042002` (hex: `0x4CEF52`) |
+| RPC | `https://rpc.mainnet.arc.io` | `https://rpc.testnet.arc.io` |
+| WebSocket | `wss://rpc.mainnet.arc.io` | `wss://rpc.testnet.arc.io` |
+| Explorer | https://explorer.arc.io | https://explorer.testnet.arc.io |
+| Faucet | -- (fund with real USDC) | https://faucet.circle.com |
+| CCTP Domain | `26` | `26` |
 
 ### Token Addresses for Arc
 
-| Token | Address | Decimals |
-|-------|---------|----------|
-| USDC | `0x3600000000000000000000000000000000000000` | 6 (ERC-20) |
-| EURC | `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a` | 6 |
+USDC is a fixed native predeploy at the same address on every Arc network.
+
+| Token | Decimals | Mainnet | Testnet |
+| --- | --- | --- | --- |
+| USDC | 6 (ERC-20) | `0x3600000000000000000000000000000000000000` | `0x3600000000000000000000000000000000000000` |
+| EURC | 6 | `0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1` | `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a` |
+
+For other tokens, see the [Arc contract addresses](https://docs.arc.io/arc/references/contract-addresses) page.
 
 ## Core Concepts
 
@@ -51,55 +58,16 @@ PRIVATE_KEY=         # Deployer wallet private key
   - USDC ↔ native is NOT a swap or conversion — it is the same asset. Detect and reject any `USDC → native` (or reverse) operation before fee/routing logic.
   - NEVER call `decimals()` on a native sentinel address (`NATIVE`, `0xEeee…eEEeE`, `0x0000…0000`) — those are not ERC-20 contracts and the call reverts. The ERC-20 is 6 decimals; native is 18.
   - The two views differ by a factor of 10^12 (`1e18` native = `1e6` ERC-20). Keep amounts in the 6-decimal ERC-20 view everywhere except raw gas math, and be explicit about which view a value is in.
-- **Testnet only**: Arc is currently in testnet. All addresses and configuration apply to testnet only.
+- **Mainnet and testnet**: Arc mainnet (chain ID `5042`) and Arc testnet (chain ID `5042002`) are both available — see Network Details for the config of each. Mainnet transactions move real USDC and are irreversible; use testnet for development and demos.
 - **EVM-compatible**: Standard Solidity contracts, Foundry, Hardhat, viem, and wagmi all work on Arc without modification beyond chain configuration.
 
 ## Implementation Patterns
 
-### 1. Frontend App (React + wagmi)
+READ `references/deploying-on-arc.md` for the runnable setup — wagmi chain config, Foundry deploy, Circle's pre-audited contract templates, and bridging USDC in.
 
-Use the `arcTestnet` chain definition from Prerequisites / Setup. Pass it to your wagmi config:
-
-```typescript
-import { createConfig, http } from 'wagmi'
-import { arcTestnet } from 'viem/chains'
-
-const config = createConfig({
-  chains: [arcTestnet],
-  transports: { [arcTestnet.id]: http() },
-})
-```
-
-### 2. Smart Contracts (Foundry)
-
-```bash
-# Install Foundry
-curl -L https://foundry.paradigm.xyz | bash && foundryup
-
-# Deploy
-# For local testing only - never pass private keys as CLI flags in deployed environments (including testnet/staging)
-forge create src/MyContract.sol:MyContract \
-  --rpc-url $ARC_TESTNET_RPC_URL \
-  --private-key $PRIVATE_KEY \
-  --broadcast
-```
-
-### 3. Circle Contracts (Pre-audited Templates)
-
-Deploy via Circle's Smart Contract Platform API:
-
-| Template | Use Case |
-|----------|----------|
-| ERC-20 | Fungible tokens |
-| ERC-721 | NFTs, unique assets |
-| ERC-1155 | Multi-token collections |
-| Airdrop | Token distribution |
-
-See: https://developers.circle.com/contracts
-
-### 4. Bridge USDC to Arc
-
-Use CCTP to bridge USDC from other chains. Arc's CCTP domain is `26`. See the `bridge-stablecoin` skill for the complete bridging workflow.
+1. **Configure the chain** — use the built-in viem chains (no custom definition needed): `arcTestnet` for testnet, `arc` for mainnet.
+2. **Deploy contracts** — standard Foundry/Hardhat against `ARC_TESTNET_RPC_URL` (or `ARC_MAINNET_RPC_URL`), or Circle's Smart Contract Platform templates (ERC-20/721/1155/Airdrop).
+3. **Bridge USDC in** — Arc's CCTP domain is `26`; use the `bridge-stablecoin` skill for the full workflow.
 
 ## Rules
 
@@ -113,18 +81,18 @@ Use CCTP to bridge USDC from other chains. Arc's CCTP domain is `26`. See the `b
 
 ### Best Practices
 
-- Arc Testnet is available by default in Viem -- a custom chain definition is NEVER required.
-- ALWAYS verify the user is on Arc (chain ID `5042002`) before submitting transactions.
-- ALWAYS fund the wallet from https://faucet.circle.com before sending transactions.
+- Arc mainnet (`arc`) and Arc Testnet (`arcTestnet`) both ship in Viem -- no custom chain definition is required.
+- ALWAYS verify the user is on the intended Arc network (mainnet chain ID `5042` or testnet `5042002`) before submitting transactions.
+- ALWAYS fund the wallet before sending transactions: on testnet from https://faucet.circle.com; on mainnet with real USDC.
 - ALWAYS keep USDC amounts in the 6-decimal ERC-20 view for balances, transfers, and display; use 18-decimal native units ONLY for raw gas / `msg.value` math. Never sum the two views or treat native and USDC as separate assets.
-- NEVER target mainnet -- Arc is testnet only.
+- Arc mainnet moves **real USDC** and transactions are irreversible. Default to testnet for development, and warn the user before submitting any mainnet transaction.
 
 ## Next Steps
 
 Arc is natively supported across Circle's product suite. Once your app is running on Arc, you can extend it with any of the following:
 
 | Product | Skill | What It Does |
-|---------|-------|--------------|
+| --- | --- | --- |
 | **Wallets (overview)** | `use-circle-wallets` | Compare wallet types and choose the right one for your app |
 | **Modular Wallets** | `use-modular-wallets` | Passkey-authenticated smart accounts with gasless transactions and batch operations |
 | **User-Controlled Wallets** | `use-user-controlled-wallets` | Non-custodial wallets with social login, email OTP, and PIN authentication |
@@ -135,8 +103,9 @@ Arc is natively supported across Circle's product suite. Once your app is runnin
 
 ## Reference Links
 
-- [Arc Docs](https://docs.arc.network/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.
-- [Arc Explorer](https://testnet.arcscan.app)
+- [Arc Docs](https://docs.arc.io/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.
+- [Arc Explorer (Mainnet)](https://explorer.arc.io)
+- [Arc Explorer (Testnet)](https://explorer.testnet.arc.io)
 - [Circle Faucet](https://faucet.circle.com)
 - [Circle Developer Docs](https://developers.circle.com/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.
 

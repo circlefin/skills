@@ -51,7 +51,7 @@ const executeRes = await walletsClient.createContractExecutionTransaction({
   },
 });
 
-const txId = executeRes.data?.transactionId;
+const txId = executeRes.data?.id;
 console.log({ txId });
 ```
 

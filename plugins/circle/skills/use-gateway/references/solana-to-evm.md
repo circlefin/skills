@@ -6,7 +6,7 @@ Canonical runnable references:
 - Transfer unified USDC balance: https://developers.circle.com/gateway/howtos/transfer-unified-usdc-balance.md
 - Unified balance EVM quickstart: https://developers.circle.com/gateway/quickstarts/unified-balance-evm.md
 - Unified balance Solana quickstart: https://developers.circle.com/gateway/quickstarts/unified-balance-solana.md
-- Arc crosschain USDC tutorial: https://docs.arc.network/arc/tutorials/access-usdc-crosschain.md
+- Arc crosschain USDC tutorial: https://docs.arc.io/arc/tutorials/access-usdc-crosschain.md
 
 ## What this does
 
@@ -41,6 +41,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arcTestnet } from "viem/chains";
+import { PublicKey } from "@solana/web3.js";
 
 const GATEWAY_API_URL = "https://gateway-api-testnet.circle.com/v1/transfer";
 

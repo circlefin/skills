@@ -16,8 +16,12 @@ npm install @circle-fin/swap-kit @circle-fin/adapter-viem-v2 viem
 
 ```
 PRIVATE_KEY=              # EVM wallet private key (hex, 0x-prefixed)
-KIT_KEY=                  # Kit key from Circle Developer Console
+KIT_KEY=                  # Optional; server-side authenticated requests only
 ```
+
+The examples use permissionless mode and omit `kitKey`. A server may add
+`config: { kitKey: process.env.KIT_KEY }` when authenticated requests are
+needed. Never move that credential into browser code.
 
 ## Using App Kit
 
@@ -44,9 +48,6 @@ const swapTokens = async (): Promise<void> => {
       tokenIn: "USDT",
       tokenOut: "USDC",
       amountIn: "1.00",
-      config: {
-        kitKey: process.env.KIT_KEY as string,
-      },
     });
 
     console.log("RESULT", inspect(result, false, null, true));
@@ -83,9 +84,6 @@ const swapTokens = async (): Promise<void> => {
       tokenIn: "USDT",
       tokenOut: "USDC",
       amountIn: "1.00",
-      config: {
-        kitKey: process.env.KIT_KEY as string,
-      },
     });
 
     console.log("RESULT", inspect(result, false, null, true));

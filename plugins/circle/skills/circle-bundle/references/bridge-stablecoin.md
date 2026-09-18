@@ -1,0 +1,1 @@
+../../bridge-stablecoin/SKILL.md

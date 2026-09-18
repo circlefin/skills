@@ -33,3 +33,5 @@ circle services pay "https://service.example.com/summarize" \
 ```
 
 Always pass `-X` from inspect output. If the buyer wallet is not ready, hand off to `use-agent-wallet` or `fund-agent-wallet`; come back when the paid endpoint needs verification.
+
+After the happy path, ask whether a buyer retry after an ambiguous response can settle twice. If current Gateway docs do not document durable dedup, verify the seller's application-layer idempotency key (see Retry Safety in SKILL.md) before calling the endpoint production-ready.

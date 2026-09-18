@@ -140,6 +140,18 @@ Prepare:
 - Evidence: unpaid request returns 402; paid request returns 200
 - Current marketplace intake or "Talk to us" form URL from the seller path
 
+## Retry Safety
+
+Gateway Nanopayments target high-frequency and agentic callers. Those callers often retry after a timeout, `5xx`, or network blip. Treat ambiguous responses as a double-charge risk until proven otherwise.
+
+Before shipping:
+
+1. Confirm in current Circle Gateway / `@circle-fin/x402-batching` docs whether settlement de-dupes a repeated `TransferWithAuthorization` for the same logical purchase. Do not assume middleware silent dedup; this skill does not expose that guarantee.
+2. If docs do not document durable dedup, add an application-layer idempotency key **before** `gateway.require()` settles. Common shape: require `Idempotency-Key` (HTTP) or `_meta['x402/idempotency-key']` (MCP), scope by `(surface, payer, key)`, bind the key to a canonical hash of the request body so it cannot be replayed against a different amount, and return the cached original result for repeats inside a TTL with no second settlement.
+3. Admit the purchase intent atomically before settlement attempts, so a crash or timeout mid-flight cannot race two attempts into two charges.
+
+Never tell implementers that retries are free for the buyer unless current Circle docs prove Gateway settles once per logical purchase.
+
 ## Common Mistakes
 
 | Mistake | Fix |
@@ -153,6 +165,7 @@ Prepare:
 | Replacing Circle Gateway with generic x402.org FastAPI docs | Only use generic vanilla x402 when the user explicitly chooses the vanilla fallback |
 | Testing only HTTP 200 | Require unpaid 402, inspect output, estimate, and paid 200 |
 | Treating the seller receive address as a buyer agent wallet | Seller needs an EVM receive address; buyer wallet is for testing |
+| Shipping high-frequency paid endpoints with no retry/idempotency plan | Confirm Gateway dedup in current docs, or add an app-layer idempotency key before settlement |
 
 ## Alternatives
 

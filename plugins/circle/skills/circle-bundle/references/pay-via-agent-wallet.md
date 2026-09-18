@@ -1,0 +1,1 @@
+../../pay-via-agent-wallet/SKILL.md

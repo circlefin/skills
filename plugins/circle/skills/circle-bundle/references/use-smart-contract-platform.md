@@ -1,0 +1,1 @@
+../../use-smart-contract-platform/SKILL.md

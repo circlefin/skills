@@ -1,0 +1,1 @@
+../../accept-agent-payments/SKILL.md

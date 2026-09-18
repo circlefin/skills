@@ -1,0 +1,1 @@
+../../agent-wallet-policy/SKILL.md

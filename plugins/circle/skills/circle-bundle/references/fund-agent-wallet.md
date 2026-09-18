@@ -1,0 +1,1 @@
+../../fund-agent-wallet/SKILL.md

@@ -29,6 +29,7 @@ npx skills add circlefin/skills
 
 | Skill | Description |
 | --- | --- |
+| [`circle-bundle`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/circle-bundle/SKILL.md) | Single-install router over the full Circle skills surface. Use when you do not yet know which skill to open, or when installing Circle skills for Claude Desktop in one step. |
 | [`accept-agent-payments`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/accept-agent-payments/SKILL.md) | Monetize an HTTP endpoint for agents with USDC pay-per-call payments. Defaults to Gateway Nanopayments, covers x402 seller integration, paid-call verification, and Agent Marketplace listing prep. |
 | [`use-usdc`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/use-usdc/SKILL.md) | Interact with USDC on EVM chains and Solana. Check balances, send transfers, approve spending, and verify transactions. |
 | [`bridge-stablecoin`](https://github.com/circlefin/skills/blob/master/plugins/circle/skills/bridge-stablecoin/SKILL.md) | Browser- and server-side crosschain USDC transfers using CCTP. Includes wallet-provider adapters, UX patterns, progress tracking, and App Kit or Bridge Kit implementation. |

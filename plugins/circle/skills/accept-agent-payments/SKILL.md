@@ -127,7 +127,7 @@ Always pass `-X` from inspect output. If the buyer wallet is not ready, hand off
 
 There may not be a self-serve publish command. Treat marketplace listing as a submission package unless current docs expose a registry API. Phrases like "register the service" or "list it with the CLI" are too strong unless you have found the current seller workflow that actually does that.
 
-Use the current seller path from `https://agents.circle.com/services`. The marketplace seller section links to the current "How-to: Get listed" documentation for intake; include the intake form URL from that page in the handoff and make clear it is a submission request, not instant publication.
+Use the current seller path from `https://agents.circle.com/services`. The marketplace seller section currently links directly to the "Accept USDC from agents" intake form; the official "How-to: Get listed" documentation describes the current review flow. Include the current intake form URL in the handoff and make clear it is a submission request, not instant publication.
 
 Prepare:
 
@@ -138,7 +138,7 @@ Prepare:
 - Category, description, and example agent prompts
 - Support/contact URL and health check URL
 - Evidence: unpaid request returns 402; paid request returns 200
-- Current marketplace intake form URL from the official "How-to: Get listed" documentation
+- Current marketplace intake form URL from the seller path or official "How-to: Get listed" documentation
 
 ## Common Mistakes
 

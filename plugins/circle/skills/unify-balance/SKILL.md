@@ -104,7 +104,8 @@ If the user needs delegate functionality (smart contract account depositor with 
 
 ## Core Concepts
 
-- **Unified balance** is an accounting abstraction built on Circle Gateway. USDC tokens still live on specific blockchains, but the SDK aggregates them into a single balance view. `deposit()` adds USDC to the unified balance on a given chain. `spend()` burns from one chain and mints on a destination chain.
+- **Unified balance** is an accounting abstraction built on Circle Gateway. USDC tokens still live on specific blockchains, but the SDK aggregates them into a single balance view. `deposit()` adds USDC to the unified balance on a given chain. `spend()` burns from one or more source chains and mints on a destination chain.
+- **Source allocation** controls which chains a `spend()` draws from. Pass `allocations` on a source to set how much comes from each chain, or omit it and the provider decides automatically. Multiple sources can be combined in the `from` array, including EVM and Solana together. See `references/adapter-multichain.md`.
 - **Deposit** transfers USDC from the user's wallet to the Gateway Wallet on a specific chain, adding to the unified balance. The depositor address becomes the owner of those funds in the unified balance.
 - **Allowance strategy** controls how USDC spending approval is handled during `deposit()`. Set `allowanceStrategy` on the deposit params. Three options:
   - `'authorize'` (default) -- uses EIP-3009 `transferWithAuthorization()`. Single-step, no separate approval transaction.

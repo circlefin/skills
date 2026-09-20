@@ -6,6 +6,10 @@ Use this pattern after `kit.bridge()` returns when the application must mark a p
 
 This covers **standard destination-adapter mint flows** (the mint step has a transaction hash the destination adapter submitted). It does not define Forwarder/Orbit-specific settlement semantics.
 
+## Source
+
+Implements the proposal in [#42](https://github.com/circlefin/skills/issues/42) (destination settlement verification for BridgeResult mint flows). The Arc Testnet smoke-check transaction, recipient, amount, and single-exact-match policy below come from the PayLink validation work documented in that issue.
+
 ## When to run this check
 
 Run it when **all** of the following are true:

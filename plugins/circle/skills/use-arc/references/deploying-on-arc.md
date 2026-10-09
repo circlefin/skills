@@ -45,4 +45,4 @@ See: https://developers.circle.com/contracts
 
 ## Bridge USDC to Arc
 
-Use CCTP to bridge USDC from other chains. Arc's CCTP domain is `26`. See the `bridge-stablecoin` skill for the complete bridging workflow.
+Use CCTP to bridge USDC from other chains. Arc's CCTP domain is `26`. See the `bridge-tokens` skill for the complete bridging workflow.

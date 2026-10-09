@@ -6,7 +6,7 @@
 circle gateway deposit --amount <amount> --address <addr> --chain MATIC --method direct
 ```
 
-Supported chains for direct: Arc, BASE, MATIC, ETH, ARB, AVAX, OP, UNI. Direct on fast-finality chains (Arc, MATIC, AVAX) is fast — Arc settles sub-second, MATIC/AVAX ~8s. Direct on slow chains (BASE, ETH, ARB, OP, UNI) is 13–19 minutes — almost always the wrong choice over eco. On Arc, direct is the natural path (fast, USDC-native gas); eco is a BASE-source-only shortcut and does not apply to Arc.
+Supported chains for direct: Arc, BASE, MATIC, ETH, ARB, AVAX, OP, UNI. Direct on fast-finality chains (Arc, MATIC, AVAX) is fast — Arc settles sub-second, MATIC/AVAX ~8s. Direct on slow chains (BASE, ETH, ARB, OP, UNI) is 13–19 minutes — almost always the wrong choice over eco. On Arc, direct is the natural path when the USDC is already there (fast, USDC-native gas); eco is the BASE-source shortcut that also lands the balance on Arc.
 
 ## Withdrawing from Gateway
 

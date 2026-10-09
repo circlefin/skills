@@ -286,7 +286,7 @@ Trigger the `use-gateway` skill instead when:
 - You need direct contract-level Gateway integration without an SDK abstraction layer.
 - You need custom control over individual CCTP steps (approve, burn, fetchAttestation, mint).
 
-Trigger the `bridge-stablecoin` skill instead when:
+Trigger the `bridge-tokens` skill instead when:
 - You need simple point-to-point USDC transfers without maintaining a unified balance.
 - You want CCTP-native bridging with retry/recovery support via Bridge Kit.
 

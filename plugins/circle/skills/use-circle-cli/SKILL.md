@@ -63,7 +63,7 @@ Top-level command groups, organized by what the user typically wants to do:
 | `circle bridge transfer` | Bridge USDC to another blockchain via CCTP (~8–20s on fast chains, longer on slow chains) |
 | `circle bridge status` | Check progress of a bridge transfer |
 | `circle bridge get-fee` | Show CCTP fee schedule |
-| `circle gateway deposit` | Move on-chain USDC into Circle Gateway for nanopayments (eco lands on Polygon ~50-60s for $0.03; direct stays on source chain) |
+| `circle gateway deposit` | Move on-chain USDC into Circle Gateway for nanopayments (eco lands on Arc ~50-60s for $0.03; direct stays on source chain) |
 | `circle gateway balance` | Show Gateway / Nanopayments balance per chain |
 | `circle gateway withdraw` | Move Gateway balance back to a wallet (same-chain only in v1) |
 
@@ -155,7 +155,7 @@ Surface version/update guidance to the user when relevant — start of session, 
 
 For the agent-wallet flows, route to the dedicated skill per the **Common end-to-end flows** table above: `use-agent-wallet` (setup/login/Terms/create), `pay-via-agent-wallet` (paid x402 services), `fund-agent-wallet` (add USDC / Gateway deposit), `agent-wallet-policy` (spending limits).
 
-Trigger one of the SDK-flavored skills (`use-usdc`, `use-gateway`, `bridge-stablecoin`, `swap-tokens`, `use-circle-wallets`, `use-developer-controlled-wallets`, `use-user-controlled-wallets`, `use-modular-wallets`, `use-smart-contract-platform`, `use-arc`) instead when the user is writing **application code** with Circle SDKs (e.g., `@circlefin/app-kit`, `@circlefin/bridge-kit`) or wants architectural guidance (choosing a wallet type, integrating CCTP, deploying contracts).
+Trigger one of the SDK-flavored skills (`use-usdc`, `use-gateway`, `bridge-tokens`, `swap-tokens`, `use-circle-wallets`, `use-developer-controlled-wallets`, `use-user-controlled-wallets`, `use-modular-wallets`, `use-smart-contract-platform`, `use-arc`) instead when the user is writing **application code** with Circle SDKs (e.g., `@circlefin/app-kit`, `@circlefin/bridge-kit`) or wants architectural guidance (choosing a wallet type, integrating CCTP, deploying contracts).
 
 The CLI is for **agent-flow use** (an AI agent operating on behalf of a user). The SDK skills are for **code-generation use** (helping a developer write application code).
 

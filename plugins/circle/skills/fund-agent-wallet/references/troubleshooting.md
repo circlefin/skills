@@ -7,7 +7,7 @@
 | Terminal QR truncated or unscannable | Agent UIs can't render QR codes reliably | Re-run with `--open` (browser QR) or `--export ~/Downloads` (PNG file) |
 | `Wallet not deployed` | First tx on this chain — SCA needs deployment | Trigger deployment by performing any real transaction from this wallet on this chain — typically the deposit / transfer step in this skill, or a normal payment via `pay-via-agent-wallet`. There is no dedicated "deploy" command today; consult `circle wallet --help` for current options. |
 | `Insufficient balance` | Not enough USDC on the picked chain | Check both pools — `circle wallet balance` (vanilla) and `circle gateway balance` (Gateway) — verify correct chain |
-| Eco deposit settled but `pay` errors with "no Gateway balance on BASE" | Eco lands on **Polygon**, not BASE | Re-run `pay` with `--chain MATIC` |
+| Eco deposit settled but `pay` errors with "no Gateway balance on BASE" | Eco lands on **Arc**, not BASE | Re-run `pay` with `--chain ARC` |
 | `Cross-chain withdraw (--destination) is not yet supported` | Tried `gateway withdraw --destination` | v1 is same-chain only — withdraw same-chain, then `circle bridge transfer` |
 
 ## Reference links

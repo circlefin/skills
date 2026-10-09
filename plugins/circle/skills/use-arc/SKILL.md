@@ -67,7 +67,7 @@ READ `references/deploying-on-arc.md` for the runnable setup — wagmi chain con
 
 1. **Configure the chain** — use the built-in viem chains (no custom definition needed): `arcTestnet` for testnet, `arc` for mainnet.
 2. **Deploy contracts** — standard Foundry/Hardhat against `ARC_TESTNET_RPC_URL` (or `ARC_MAINNET_RPC_URL`), or Circle's Smart Contract Platform templates (ERC-20/721/1155/Airdrop).
-3. **Bridge USDC in** — Arc's CCTP domain is `26`; use the `bridge-stablecoin` skill for the full workflow.
+3. **Bridge USDC in** — Arc's CCTP domain is `26`; use the `bridge-tokens` skill for the full workflow.
 
 ## Rules
 
@@ -98,7 +98,7 @@ Arc is natively supported across Circle's product suite. Once your app is runnin
 | **User-Controlled Wallets** | `use-user-controlled-wallets` | Non-custodial wallets with social login, email OTP, and PIN authentication |
 | **Developer-Controlled Wallets** | `use-developer-controlled-wallets` | Custodial wallets your app manages on behalf of users |
 | **Smart Contract Platform** | `use-smart-contract-platform` | Deploy, interact with, and monitor smart contracts using audited templates or custom bytecode |
-| **CCTP Bridge** | `bridge-stablecoin` | Bridge USDC to and from Arc using Crosschain Transfer Protocol |
+| **CCTP Bridge** | `bridge-tokens` | Bridge USDC to and from Arc using Crosschain Transfer Protocol |
 | **Gateway** | `use-gateway` | Unified USDC balance across chains with instant crosschain transfers |
 
 ## Reference Links

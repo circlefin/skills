@@ -178,7 +178,7 @@ Adapt the matched reference; do not invent a parallel implementation or fresh sc
 
 ## Alternatives
 
-- Trigger `bridge-stablecoin` skill (CCTP / Bridge Kit) for simple **point-to-point transfers** without a unified balance. Bridge Kit handles approve, burn, attestation, and mint in a single `kit.bridge()` call and supports more chains than Gateway.
+- Trigger `bridge-tokens` skill (CCTP / Bridge Kit) for simple **point-to-point transfers** without a unified balance. Bridge Kit handles approve, burn, attestation, and mint in a single `kit.bridge()` call and supports more chains than Gateway.
 - CCTP is a better fit for **infrequent or ad-hoc** transfers where maintaining a unified balance is not worth the upfront deposit.
 - Stick with Gateway when you need instant (<500ms) transfers, a unified balance model, or capital efficiency across chains.
 

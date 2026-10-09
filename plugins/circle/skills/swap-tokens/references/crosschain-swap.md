@@ -203,7 +203,7 @@ resubmit `swap()` solely because destination settlement is still pending.
   route, do not call `swap()`. Do not interpret validation, transport, timeout,
   or rate-limit failures as no-route results.
 - When no direct route exists, offer a separately estimated source swap to
-  USDC, USDC bridge using the `bridge-stablecoin` skill, and destination swap.
+  USDC, USDC bridge using the `bridge-tokens` skill, and destination swap.
   Display the full fallback plan and estimates in the UI, then start it only
   from a user-triggered button. Never launch fallback transactions
   automatically after the direct-route estimate fails.
@@ -305,7 +305,7 @@ export async function executeFallback(saved: {
     }));
 
   if (bridge.state === "error") {
-    // Persist { sourceSwap, bridge } and resume the bridge with kit.retry().
+    // Persist { sourceSwap, bridge } and resume the bridge with kit.retryBridge().
     return { sourceSwap, bridge };
   }
 

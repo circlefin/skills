@@ -30,7 +30,7 @@ import { inspect } from "util";
 
 const kit = new AppKit();
 
-const bridgeUSDC = async (): Promise<void> => {
+export const bridgeUSDC = async (): Promise<void> => {
   const apiKey = process.env.CIRCLE_API_KEY;
   const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
   const evmWalletAddress = process.env.EVM_WALLET_ADDRESS;
@@ -68,7 +68,7 @@ const bridgeUSDC = async (): Promise<void> => {
   }
 };
 
-void bridgeUSDC();
+// Call bridgeUSDC() only from the user's explicit confirm action -- never at module startup.
 ```
 
 ## Using Bridge Kit
@@ -80,7 +80,7 @@ import { inspect } from "util";
 
 const kit = new BridgeKit();
 
-const bridgeUSDC = async (): Promise<void> => {
+export const bridgeUSDC = async (): Promise<void> => {
   const apiKey = process.env.CIRCLE_API_KEY;
   const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
   const evmWalletAddress = process.env.EVM_WALLET_ADDRESS;
@@ -118,5 +118,5 @@ const bridgeUSDC = async (): Promise<void> => {
   }
 };
 
-void bridgeUSDC();
+// Call bridgeUSDC() only from the user's explicit confirm action -- never at module startup.
 ```

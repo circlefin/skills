@@ -47,7 +47,7 @@ Ask the user: *"How would you like to fund your wallet?"*
 - **Existing USDC** — Send USDC from a wallet they already have (MetaMask, Coinbase, Phantom, etc.). Faster and free of on-ramp fees.
 - **Gateway deposit (advanced)** — Move existing on-chain USDC into the Gateway balance for low-latency batched payments. Only useful if the seller they're paying supports Gateway on a specific chain.
 
-**Default recommendation: existing USDC → Arc.** Arc uses USDC as its native gas token (no separate gas asset to hold) and has sub-second finality, so a `direct` Gateway deposit on Arc settles fast — no eco→Polygon hop. Use BASE/Polygon when paying sellers that only accept those chains.
+**Default recommendation: existing USDC → Arc.** Arc uses USDC as its native gas token (no separate gas asset to hold) and has sub-second finality, so a `direct` Gateway deposit on Arc settles fast — and an eco deposit from BASE lands on Arc too, so either path ends up on the same chain. Use BASE/Polygon when paying sellers that only accept those chains.
 
 ## Step 2 — Required flags for non-interactive use
 
@@ -98,13 +98,13 @@ Only suggest a Gateway deposit when:
 
 ### Eco vs direct — pick eco unless one of four conditions holds
 
-`circle gateway deposit --method eco` deposits BASE vanilla USDC into Gateway and **lands on Polygon** (Gateway domain 7) in ~30-50s for a $0.03 flat fee. The follow-up payment is `pay --chain MATIC`.
+`circle gateway deposit --method eco` deposits BASE vanilla USDC into Gateway and **lands on Arc** (Gateway domain 26) in ~30-50s for a $0.03 flat fee. The follow-up payment is `pay --chain ARC`.
 
 Use `--method direct` **only** when:
 
-1. **The user explicitly asked for direct** — e.g. "deposit on BASE without going to Polygon", "stay on BASE", "use direct deposit". Implicit preferences and your own inferences do not count.
+1. **The user explicitly asked for direct** — e.g. "deposit on BASE without going to Arc", "stay on BASE", "use direct deposit". Implicit preferences and your own inferences do not count.
 2. **The source chain isn't supported by eco** — eco only supports BASE as a source today; check `circle gateway deposit --help` for the current list. Trying an unsupported source returns "Unknown method" or chain-not-supported.
-3. **The seller does NOT accept Gateway on Polygon** — verify by reading the seller's raw 402 `accepts[]` (not `circle services inspect`). Eco lands on Polygon, so if the seller can't pay there, the Gateway balance won't be reachable for this payment.
+3. **The seller does NOT accept Gateway on Arc** — verify by reading the seller's raw 402 `accepts[]` (not `circle services inspect`). Eco lands on Arc, so if the seller can't pay there (e.g. a Polygon-only Gateway seller), the Gateway balance won't be reachable for this payment; deposit directly on a chain the seller accepts instead.
 4. **The user already has vanilla on a fast chain the seller accepts** — `direct --chain <fast-chain>` is fast **only on fast-finality chains (Arc, MATIC, AVAX)** and skips the eco fee. (e.g., user has 5 USDC vanilla on Polygon → `direct --chain MATIC`; or vanilla on Arc → `direct --chain ARC`.)
 
 If none of conditions 1–4 holds, **the answer is eco**. Picking direct anyway is slow on BASE: **direct on BASE (and ETH/ARB/OP/UNI) waits ~13–19 minutes for finality** + gas, vs eco's ~30-50s + $0.03. (The fast timings above are Arc/MATIC/AVAX only — never quote them for BASE.)
@@ -113,13 +113,13 @@ If none of conditions 1–4 holds, **the answer is eco**. Picking direct anyway 
 
 Eco's cold-start (~30-50s + $0.03) is paid **once**; every Gateway call after is <500ms. Vanilla has no deposit but every call costs ~2s forever with no amortization. Agentic workflows are rarely single-call, so treat the deposit as one-time wallet onboarding, not a per-call cost. (Time breakeven is ~N=7-13 calls, but Gateway-only seller access and <500ms future calls already win at call 1.)
 
-### Eco deposit (BASE → Polygon)
+### Eco deposit (BASE → Arc)
 
 READ `references/gateway-eco-deposit.md` for the `circle gateway deposit --method eco` command (all of `--amount`, `--address`, `--chain`, `--method` are required) and Gateway balance verification.
 
 Once the deposit verifies, hand off to the `pay-via-agent-wallet` skill for the actual payment — that skill owns the `circle services pay` flow (including its allowed-tools whitelist and gotchas).
 
-**Common mistake:** using `--chain BASE` on the `pay` call when the Gateway balance landed on Polygon. The chain on `pay` must match where the balance lives.
+**Common mistake:** using `--chain BASE` on the `pay` call when the Gateway balance landed on Arc. The chain on `pay` must match where the balance lives.
 
 ### Direct deposit and Gateway withdrawals
 
@@ -139,12 +139,12 @@ If a legacy Eco intent expired, is `WaitingForRefund`, or refunded USDC to `eoaO
 - ALWAYS pass `--amount <number>` to `circle wallet fund` — confirm the amount with the user first.
 - ALWAYS prefer `--method crypto --open` over rendering QR codes in the terminal — terminal QR codes get truncated inside Claude Code, Codex, and similar agent UIs and become unscannable.
 - For fiat: use `--method fiat --open` so the on-ramp loads in the browser.
-- NEVER suggest a Gateway eco deposit unless you have verified the target service supports Gateway on Polygon via the discovery API or the seller's raw 402 `accepts[]`.
+- NEVER suggest a Gateway eco deposit unless you have verified the target service supports Gateway on Arc via the discovery API or the seller's raw 402 `accepts[]`.
 - NEVER deposit 100% of the user's vanilla balance into Gateway. The wallet needs vanilla headroom for vanilla-only sellers the user may hit next.
 - Sizing formula: `amount = max(price × N + fee + slack, Gateway minimum)`, where N is the workflow's expected call count. Typically reserve ~50% of vanilla as a soft headroom floor. Gateway enforces a server-side minimum deposit; sizing below it returns an error, so floor your suggestion to that minimum. Run `circle gateway deposit --help` for current bounds.
 - Surface to the user before depositing when the required amount is materially larger than the workflow's total cost (cheap-endpoint case: $0.0024/call × 5 = $0.012, but the Gateway minimum sets the floor) or above the user's stated `--max-amount` cap. Don't silently deposit ~100× the task cost.
 - The first real transaction on a new chain deploys the SCA — there is no dedicated "deploy" command today. Consult `circle wallet --help` for the current options if a `Wallet not deployed` error appears.
-- ALWAYS use `--chain` matching where the balance lives. Eco lands on Polygon → `pay --chain MATIC`. Direct lands on the source chain → `pay --chain <same>`.
+- ALWAYS use `--chain` matching where the balance lives. Eco lands on Arc → `pay --chain ARC`. Direct lands on the source chain → `pay --chain <same>`.
 - Gateway does NOT do cross-chain transfers at payment time. Source chain matters.
 - Abstract chain details from the user unless they explicitly want technical specifics. The user asked to fund the wallet; they don't need a tour of EVM finality.
 - If the `circle` CLI itself causes friction during funding (unexpected error, confusing output, missing capability), file feedback per the `use-circle-cli` skill's **Report friction (feedback)** section.

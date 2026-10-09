@@ -1,175 +1,99 @@
 # Recover USDC from a backing EOA to its linked SCA
 
-This reference is only for legacy Eco deposits that refunded USDC to the `eoaOwnerAddress` associated with a Circle smart contract account (SCA). Current Gateway v2/Circle CLI deposits set the refund recipient to the SCA and do not need this sweep.
+Use this reference when USDC sits at the `eoaOwnerAddress` (backing EOA) of a Circle Agent Wallet smart contract account (SCA). Two cases lead here:
+
+- A legacy Eco deposit refunded USDC to the backing EOA. Current Gateway v2/Circle CLI deposits set the refund recipient to the SCA and do not need this sweep.
+- Someone sent USDC directly to the backing EOA address, for example after seeing it as the SCA's owner on a block explorer.
+
+It needs only Node.js 20.18.2+ and the public `@circle-fin/cli` (1.1.4 or newer). No Circle CLI source checkout is required.
 
 ## Why a normal transfer does not work
 
-The backing EOA is exposed as `eoaOwnerAddress` on the Circle wallet detail object, but it is not returned as a separate wallet by normal wallet-list results. As a result, `circle wallet balance` can return `NOT_FOUND` and `circle wallet transfer` cannot select it as a source wallet.
+The backing EOA is exposed as `eoaOwnerAddress` on the Circle wallet detail object, but it is not returned as a separate wallet by normal wallet-list results. As a result, `circle wallet balance` and `circle wallet transfer` report "Wallet not found" for that address.
 
-Funding the backing EOA with native gas is unnecessary. Native USDC supports ERC-3009: the EOA signs a one-time authorization, while another account relays the USDC contract call and pays gas. Use the linked SCA as relayer and destination.
+Funding the backing EOA with native gas is unnecessary. Native USDC supports ERC-3009: the backing EOA signs a one-time `transferWithAuthorization`, and the linked SCA submits it with `circle wallet execute` and pays gas. The authorization can only move USDC from the backing EOA to the linked SCA, can be used once, and expires after one hour.
 
-## Required identity checks
+## Requirements
 
-1. Resolve the selected SCA through `circle wallet list --chain <CHAIN> --type agent --output json`.
-2. Fetch that wallet by wallet ID through the Circle wallet API.
-3. Read `eoaOwnerAddress` from the returned SCA wallet object.
-4. Require the value to be a valid EVM address.
-5. If the user supplied an expected EOA, require an exact case-insensitive match.
-6. Read the USDC balance directly with `balanceOf(eoaOwnerAddress)` on the refund chain.
+- Node.js 20.18.2 or newer.
+- Circle CLI 1.1.4 or newer: `npm install -g @circle-fin/cli@latest`.
+- An active login to the account that owns the SCA: `circle wallet login <email>` (add `--testnet` for testnet chains).
 
-Never infer the owner from transaction history, an Eco API response, a different chain's wallet, or a user-pasted address alone. Circle agent wallets can have different SCA instances across chains.
+`scripts/sign-eoa-authorization.mjs` reads the session the Circle CLI saved locally and never prints or saves session secrets. It loads `viem` from a local install or from the copy bundled with `@circle-fin/cli`.
 
-## ERC-3009 authorization
+## Collect the inputs
 
-Use USDC's standard structure:
+| Flag | Source |
+|---|---|
+| `--chain` | Circle chain code, for example `ARC`, `BASE`, `BASE-SEPOLIA` |
+| `--sca` | The linked SCA: `circle wallet list --chain <CHAIN> --type agent --output json` |
+| `--eoa` | The backing EOA holding the USDC |
+| `--usdc` | `circle contract address usdc --chain <CHAIN>` |
+| `--amount-atomic` | USDC amount × 1,000,000 (USDC has 6 decimals) |
 
-```solidity
-TransferWithAuthorization(
-    address from,
-    address to,
-    uint256 value,
-    uint256 validAfter,
-    uint256 validBefore,
-    bytes32 nonce
-)
+Confirm the backing EOA's USDC balance first:
+
+```bash
+circle contract query "balanceOf(address)" <EOA> --contract <USDC> --chain <CHAIN>
 ```
 
-Build EIP-712 typed data with an explicit domain type:
+## Sign the authorization
 
-```json
-{
-  "types": {
-    "EIP712Domain": [
-      {"name":"name","type":"string"},
-      {"name":"version","type":"string"},
-      {"name":"chainId","type":"uint256"},
-      {"name":"verifyingContract","type":"address"}
-    ],
-    "TransferWithAuthorization": [
-      {"name":"from","type":"address"},
-      {"name":"to","type":"address"},
-      {"name":"value","type":"uint256"},
-      {"name":"validAfter","type":"uint256"},
-      {"name":"validBefore","type":"uint256"},
-      {"name":"nonce","type":"bytes32"}
-    ]
-  },
-  "primaryType": "TransferWithAuthorization",
-  "domain": {
-    "name": "<USDC name() on this network>",
-    "version": "<USDC version(), normally 2>",
-    "chainId": "<refund-chain EVM ID>",
-    "verifyingContract": "<USDC contract>"
-  },
-  "message": {
-    "from": "<verified backing EOA>",
-    "to": "<linked SCA>",
-    "value": "<exact atomic amount>",
-    "validAfter": "0",
-    "validBefore": "<current time plus a short window>",
-    "nonce": "<fresh random bytes32>"
-  }
-}
+Signing authorizes movement. Show the chain, USDC contract, from (backing EOA), to (SCA), and raw and decimal amount, and get explicit user approval before running:
+
+```bash
+node <SKILL_DIR>/scripts/sign-eoa-authorization.mjs \
+  --chain <CHAIN> \
+  --sca <SCA> \
+  --eoa <EOA> \
+  --usdc <USDC> \
+  --amount-atomic <RAW_USDC_AMOUNT>
 ```
 
-Read `name()`, `version()`, and `decimals()` from the selected USDC contract when available. USDC's display/domain name differs across some mainnet and testnet deployments (`USD Coin` versus `USDC`), so do not hardcode the name. Require 6 decimals for native USDC unless authoritative chain metadata explains otherwise.
+The script:
 
-Use a cryptographically random 32-byte nonce and a short validity window, normally one hour. Never reuse a nonce.
+1. Requires `--sca` to be one of the logged-in account's Agent Wallets on `--chain`.
+2. Fetches that wallet by ID and requires its `eoaOwnerAddress` to equal `--eoa`. A mismatch stops the flow.
+3. Reads USDC `name()` and `version()` for the EIP-712 domain, because the name differs across deployments (`USD Coin` versus `USDC`).
+4. Builds `TransferWithAuthorization` with `from=<EOA>`, `to=<SCA>`, the exact raw amount, `validAfter=0`, `validBefore=now+1h`, and a fresh random 32-byte nonce.
+5. Requests typed-data signing with `walletAddress=<EOA>`. Signing with the SCA wallet ID is incorrect: it can return an EIP-1271 replay-safe SCA wrapper instead of the raw EOA signature that USDC expects.
+6. Recovers the signer locally and refuses unless it equals the backing EOA.
+7. Prints four numbered commands with every value filled in. Nothing is submitted.
 
-## Sign with the backing EOA, not the SCA
+The script talks only to Circle production (`https://agentic-wallet.circle.com`). If `CIRCLE_PROXY_URL` is set, it refuses to run. Unset the variable, run `circle wallet login` again, and run the printed commands without it too.
 
-Request Circle typed-data signing using:
+The printed submit command contains the raw signature (`v`, `r`, `s`). Do not copy it into the evidence directory or chat logs; record a hash of the signature instead.
 
-```json
-{
-  "walletAddress": "<verified backing EOA>",
-  "blockchain": "<Circle chain code>",
-  "data": "<serialized EIP-712 JSON>"
-}
-```
+## Run the printed commands within one hour
 
-Do not request signing with the SCA wallet ID. The SCA path can wrap ordinary typed data as an EIP-1271 replay-safe SCA signature. USDC's ERC-3009 implementation expects a raw ECDSA signature from `from`, so that wrapper does not verify.
+1. **Check the authorization is unused:** `authorizationState(<EOA>, <nonce>)` should end in `0`.
+2. **Estimate the network fee** with `circle wallet execute ... --estimate`. Show the estimate and get explicit approval for the transfer and fee before submitting.
+3. **Submit once** with the printed `--idempotency-key`. Expect `"state": "COMPLETE"` (or `CONFIRMED`) and a `txHash`.
+4. **Verify all three signals:**
+   - backing EOA USDC decreased by the exact amount;
+   - SCA USDC increased by the exact amount;
+   - `authorizationState(<EOA>, <nonce>)` now ends in `1`.
 
-After Circle returns the signature:
+Record the Circle transaction ID, idempotency key, onchain transaction hash, network fee, and the USDC `Transfer` log.
 
-1. Recover the EIP-712 signer locally.
-2. Require it to equal the verified backing EOA.
-3. Parse `v`, `r`, and `s`.
-4. Hash the signature for evidence, then keep the raw value out of logs and chat.
+## Troubleshooting
 
-Signing authorizes movement. Ask for explicit user approval before requesting the signature, not only before broadcast.
+| Output | Meaning | Action |
+|---|---|---|
+| `No active Circle login` | Not logged in for this chain's environment, or the session expired | `circle wallet login <email>` (with `--testnet` for testnets), then sign again |
+| `... is not one of your Agent Wallets` | `--sca`, `--chain`, or the logged-in account does not match | Re-check `--sca` with `circle wallet list --chain <CHAIN> --type agent` |
+| `The backing EOA of ... is X, not Y` | The funds are not at this SCA's backing EOA | Stop and escalate to Circle Support |
+| `Signature is from ..., not ...` or a `sign/typedData` error | Circle did not return the backing EOA's signature | Do not submit; escalate with the output |
+| `authorization is expired` | More than one hour passed since signing | Sign again to get a fresh authorization |
+| Submit times out or the result is unclear | Outcome unknown | Run the verify commands first. If the authorization state ends in `1`, recovery is complete. Otherwise re-run the same submit command with the same idempotency key; the authorization can execute only once |
 
-## Estimate gas before signing
+## Replay safety
 
-The exact contract-execution calldata contains the backing EOA signature, so it does not exist before approval. Estimate first with a structurally equivalent, zero-value ERC-3009 authorization signed by a fresh ephemeral local account. Simulate that probe, submit it only to Circle's fee-estimation endpoint, and discard its private key and raw signature without logging either. Because the probe value is zero and its signer is unrelated to the user, it cannot authorize movement of user funds.
-
-Show the probe estimate before requesting approval. Bind approval to a maximum decimal network fee in the chain's native token. Before requesting the real backing EOA signature, repeat the probe and require it to remain within that maximum. After producing the real calldata, estimate it exactly and require that estimate to remain within the same maximum before broadcast.
-
-## Simulate and submit
-
-Encode:
-
-```text
-transferWithAuthorization(
-  address,address,uint256,uint256,uint256,bytes32,uint8,bytes32,bytes32
-)
-```
-
-with:
-
-```text
-from        = verified backing EOA
-to          = linked SCA
-value       = approved atomic amount
-validAfter  = signed validAfter
-validBefore = signed validBefore
-nonce       = signed nonce
-v/r/s       = parsed raw EOA signature
-```
-
-Before submission:
-
-1. Call `authorizationState(backing EOA, nonce)` and require `false`.
-2. Run the exact `transferWithAuthorization` calldata through `eth_call` with `from=<SCA>` and `to=<USDC>`.
-3. Estimate the same raw calldata through Circle contract execution and require the fee to be within the pre-approved maximum.
-4. Re-check the EOA balance is at least the approved value.
-
-Submit through the linked SCA. The USDC authorization debits the EOA; the SCA only relays the call and pays network gas.
-
-## Approval summary
-
-Immediately before signing and submission, show:
-
-```text
-Operation: backing EOA USDC recovery
-Chain: <name/id>
-Token: <USDC address, name, version, decimals>
-From: <verified eoaOwnerAddress>
-To: <linked SCA>
-Amount: <atomic and decimal>
-Authorization expiry: <unix and ISO time>
-Relayer / gas payer: <linked SCA>
-Estimated network fee: <value, if available before signing>
-Maximum approved network fee: <decimal native-token amount>
-```
-
-Bind approval to `<EOA>:<SCA>:<atomic amount>`.
-
-## Reconciliation and replay safety
-
-After submission, verify all three independent signals:
-
-- `authorizationState(backing EOA, nonce) == true`;
-- backing EOA balance decreased by the exact amount;
-- linked SCA balance increased by the exact amount.
-
-Also record the Circle transaction ID, idempotency key, onchain transaction hash, receipt status, network fee, and USDC `Transfer` log.
-
-If the client response is ambiguous, do not sign a new authorization. Query authorization state, balances, and transaction history first. A consumed nonce proves the original authorization executed.
+Do not sign a new authorization just because a client timed out. Query authorization state, balances, and transaction history first; a consumed nonce proves the original authorization executed. If a signed authorization was never submitted, let it expire before signing another for the same amount.
 
 ## Verified behavior
 
-Circle verified this exact pattern on Base Sepolia with 0.5 USDC: the backing EOA decreased by 0.5, the linked SCA increased by 0.5, and the ERC-3009 authorization nonce became consumed. The backing EOA held no native gas; the SCA relayed the call.
+Circle verified this flow end to end with the public Circle CLI: the backing EOA decreased by the exact amount, the linked SCA increased by the same amount, and the ERC-3009 nonce became consumed. The backing EOA held no native gas; the SCA relayed the call.
 
 ## Sources
 

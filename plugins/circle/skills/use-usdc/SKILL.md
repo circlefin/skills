@@ -182,7 +182,7 @@ After determining the ecosystem (see Prerequisites), route to the appropriate re
 
 ## Alternatives
 
-- Use `bridge-stablecoin` skill (CCTP / Bridge Kit) for **transferring USDC between chains**. Bridge Kit handles approve, burn, attestation, and mint in a single `kit.bridge()` call.
+- Use `bridge-tokens` skill (CCTP / Bridge Kit) for **transferring USDC between chains**. Bridge Kit handles approve, burn, attestation, and mint in a single `kit.bridge()` call.
 - Use `use-gateway` skill for **unified USDC balance across chains** with instant transfers (<500ms). Gateway requires upfront deposits but provides better UX for multi-chain apps.
 - Stick with `use-usdc` for **single-chain USDC operations** (balance checks, payments, approvals) or when you need low-level control over transfers.
 

@@ -60,6 +60,8 @@ kit.on("*", (payload) => {
 });
 ```
 
+**CCTPx tokens** (wETH, cirBTC, EURC, token IDs) emit `bridge.transfer` and `bridge.forward` instead of `bridge.burn` and `bridge.mint`; see `non-usdc-cctpx.md`.
+
 **Bridge Kit only:** drop the `bridge.` prefix — the events are `"approve"`, `"burn"`, `"fetchAttestation"`, `"mint"`. The App Kit `bridge.*` namespacing only applies because App Kit's `kit.on()` also dispatches other namespaces (e.g. `unifiedBalance.*`) and filters bridge events by the `bridge.` prefix.
 
 ## Analyzing Failed Transfers
@@ -89,7 +91,7 @@ if (result.state === "error") {
 
 ## Retrying Failed Transfers
 
-`kit.retry()` resumes from the failed step, skipping the steps that already succeeded — so a timeout after `approve`/`burn` re-runs only the attestation fetch and mint.
+`kit.retryBridge()` (App Kit) resumes from the failed step, skipping the steps that already succeeded — so a timeout after `approve`/`burn` re-runs only the attestation fetch and mint. On Bridge Kit the same method is `kit.retry()`, with the same arguments.
 
 ```ts
 const result = await kit.bridge({
@@ -99,7 +101,8 @@ const result = await kit.bridge({
 });
 
 if (result.state === "error") {
-  const retryResult = await kit.retry(result, {
+  // App Kit. On Bridge Kit, call kit.retry(result, { from, to }) instead.
+  const retryResult = await kit.retryBridge(result, {
     from: adapter,
     to: adapter,
   });

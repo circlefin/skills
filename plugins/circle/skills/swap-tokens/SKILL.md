@@ -318,7 +318,7 @@ try {
 - ALWAYS use App Kit string chain names (e.g., `"Ethereum"`, `"Base"`), not numeric chain IDs.
 - ALWAYS handle fee recipient addresses on the same network as swap origin.
 - For a supported cross-chain swap route, use one `swap()` call with `to.chain` and `to.recipientAddress`, then track it with `waitForSwap()` or `getSwapStatus()`. Do not insert a manual Bridge Kit step.
-- When estimation explicitly reports no supported direct route, stop before `swap()`. Offer an explicit source swap to USDC, USDC bridge via the `bridge-stablecoin` skill, and destination swap only after displaying the full fallback plan and estimates. Start the fallback only from a user-triggered UI action; never launch it automatically after the direct-route estimate fails.
+- When estimation explicitly reports no supported direct route, stop before `swap()`. Offer an explicit source swap to USDC, USDC bridge via the `bridge-tokens` skill, and destination swap only after displaying the full fallback plan and estimates. Start the fallback only from a user-triggered UI action; never launch it automatically after the direct-route estimate fails.
 - ALWAYS use exported SDK types instead of creating custom interfaces.
 
 ## Reference Links
@@ -328,7 +328,7 @@ try {
 
 ## Alternatives
 
-Trigger the `bridge-stablecoin` skill instead when:
+Trigger the `bridge-tokens` skill instead when:
 - You need USDC-only crosschain transfers with no swap involved.
 - You want CCTP-native bridging with retry/recovery support.
 

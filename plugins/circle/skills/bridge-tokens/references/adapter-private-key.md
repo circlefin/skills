@@ -31,7 +31,7 @@ import { inspect } from "util";
 
 const kit = new AppKit();
 
-const bridgeUSDC = async (): Promise<void> => {
+export const bridgeUSDC = async (): Promise<void> => {
   const privateKey = process.env.PRIVATE_KEY;
   if (!privateKey || !privateKey.startsWith("0x")) {
     throw new Error("PRIVATE_KEY env var must be set and 0x-prefixed");
@@ -54,7 +54,7 @@ const bridgeUSDC = async (): Promise<void> => {
   }
 };
 
-void bridgeUSDC();
+// Call bridgeUSDC() only from the user's explicit confirm action -- never at module startup.
 ```
 
 ### Using Bridge Kit
@@ -66,7 +66,7 @@ import { inspect } from "util";
 
 const kit = new BridgeKit();
 
-const bridgeUSDC = async (): Promise<void> => {
+export const bridgeUSDC = async (): Promise<void> => {
   const privateKey = process.env.PRIVATE_KEY;
   if (!privateKey || !privateKey.startsWith("0x")) {
     throw new Error("PRIVATE_KEY env var must be set and 0x-prefixed");
@@ -89,7 +89,7 @@ const bridgeUSDC = async (): Promise<void> => {
   }
 };
 
-void bridgeUSDC();
+// Call bridgeUSDC() only from the user's explicit confirm action -- never at module startup.
 ```
 
 ## EVM to Solana
@@ -104,7 +104,7 @@ import { inspect } from "util";
 
 const kit = new AppKit();
 
-const bridgeUSDC = async (): Promise<void> => {
+export const bridgeUSDC = async (): Promise<void> => {
   const evmPrivateKey = process.env.EVM_PRIVATE_KEY;
   if (!evmPrivateKey || !evmPrivateKey.startsWith("0x")) {
     throw new Error("EVM_PRIVATE_KEY env var must be set and 0x-prefixed");
@@ -136,7 +136,7 @@ const bridgeUSDC = async (): Promise<void> => {
   }
 };
 
-void bridgeUSDC();
+// Call bridgeUSDC() only from the user's explicit confirm action -- never at module startup.
 ```
 
 ### Using Bridge Kit
@@ -149,7 +149,7 @@ import { inspect } from "util";
 
 const kit = new BridgeKit();
 
-const bridgeUSDC = async (): Promise<void> => {
+export const bridgeUSDC = async (): Promise<void> => {
   const evmPrivateKey = process.env.EVM_PRIVATE_KEY;
   if (!evmPrivateKey || !evmPrivateKey.startsWith("0x")) {
     throw new Error("EVM_PRIVATE_KEY env var must be set and 0x-prefixed");
@@ -181,5 +181,5 @@ const bridgeUSDC = async (): Promise<void> => {
   }
 };
 
-void bridgeUSDC();
+// Call bridgeUSDC() only from the user's explicit confirm action -- never at module startup.
 ```

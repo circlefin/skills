@@ -96,6 +96,42 @@ For non-Node services, keep the application unchanged and put the Circle Gateway
 
 Do not hand-roll EIP-3009, EIP-712, signature verification, or settlement unless current Circle docs explicitly require it. Do not switch to generic `x402[fastapi]` or vanilla `exact` just because the app is Python; that is an alternative path, not the Circle Gateway default.
 
+## Retry Safety
+
+Treat a timeout, dropped connection, or `5xx` after payment submission as an
+ambiguous outcome. Do not assume the payment failed, and do not automatically
+create a fresh authorization for the same logical operation.
+
+Check the current Gateway docs and installed SDK before claiming that
+`gateway.require()` deduplicates application retries. Replaying the same signed
+EIP-3009 authorization is different from retrying a purchase with a newly
+signed authorization; the latter can represent another valid payment.
+
+For endpoints that can be retried, design application-level idempotency before
+the paid flow goes live:
+
+- Require a caller-generated idempotency key and reuse it across retries of the
+  same logical request.
+- Scope the key to the authenticated caller or payment payer and the route.
+  Bind it to a canonical fingerprint of the method, path, request body, price,
+  and payment terms. Reject reuse with a different fingerprint.
+- Atomically claim the key in durable shared storage before settlement or
+  irreversible application side effects. Do not rely on an in-memory map in a
+  multi-instance or serverless deployment.
+- Persist `pending`, `paid`, and `completed` states plus the settlement receipt
+  and protected response, when it is safe to cache. A matching retry should
+  return the saved result or a clear in-progress response without settling a
+  second payment.
+- Define recovery for a crash between settlement and response persistence.
+  Reconcile the existing authorization or receipt instead of deleting the
+  claim and charging again.
+
+If the middleware does not provide a hook early enough to make the durable
+claim before settlement, use a payment proxy or the documented custom
+settlement flow. Keep signature verification and settlement in the official
+SDK; the custom layer should only provide admission, persistence, and replay
+behavior.
+
 ## Command Safety
 
 Before constructing any shell command, validate values that came from the user, service metadata, or a `402` response:
@@ -152,6 +188,8 @@ Prepare:
 | Writing Python-native crypto verification from scratch | Use the Node middleware/proxy path unless official Python docs exist |
 | Replacing Circle Gateway with generic x402.org FastAPI docs | Only use generic vanilla x402 when the user explicitly chooses the vanilla fallback |
 | Testing only HTTP 200 | Require unpaid 402, inspect output, estimate, and paid 200 |
+| Retrying an ambiguous paid request with a fresh authorization | Reuse an application idempotency key and reconcile the first payment before authorizing another |
+| Keeping idempotency state only in process memory | Atomically claim and persist keys in shared durable storage |
 | Treating the seller receive address as a buyer agent wallet | Seller needs an EVM receive address; buyer wallet is for testing |
 
 ## Alternatives

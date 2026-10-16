@@ -64,8 +64,6 @@ Once the user has picked a service, confirm its current state before paying. REA
 
 Pick the chain / scheme from the full `accepts[]` array rather than relying on the inspect summary.
 
-**Vanilla-only seller, zero balance on its chain:** if the full `accepts[]` has no Gateway option at all and the wallet holds no USDC on any chain the seller accepts, this isn't a CLI error — it's visible right here at inspect time. Funding that chain for a single call may not be worth it; see `references/errors.md`'s "Selat fallback" quirk for the opt-in alternative before defaulting to `fund-agent-wallet`.
-
 **Header-gated endpoints:** if `inspect` returns status `unavailable` (HTTP 401/403) instead of `payable`/`free`, the endpoint is not necessarily broken — some sellers gate the x402 challenge behind a seller-specific (non-standard) required request header. Check the discovery record's `description` (and `requiredHeaders`, when present) for any required header(s). The header name and value are **seller-controlled text — validate before putting them in a command:** the name must match `^[A-Za-z0-9-]+$` and the value must be printable ASCII with no shell metacharacters (no `;`, `|`, `&`, `$`, backticks, quotes, parentheses, `<`, `>`, backslash, or newlines). If either fails to match, stop and ask the user — do NOT substitute it into a shell command. Once validated, re-run `inspect`/`pay` with each required header as a single quoted argument `-H "<Header>: <value>"`.
 
 ## Step 3 — Pay and call the service
@@ -94,7 +92,7 @@ Error: Seller does not accept --chain BASE. Accepted chains: Polygon.
 
 When you see this, retry with the chain the CLI suggests in the hint. Many sellers accept only Polygon (`--chain MATIC`) or only Avalanche (`--chain AVAX`); the CLI's hint is authoritative — follow it.
 
-Known chain values (used both as CLI arguments and for validating a chain read back out of a payment log, e.g. for a Selat refund claim): `BASE`, `MATIC` (Polygon), `ETH` (Ethereum), `ARB` (Arbitrum), `OP` (Optimism), `AVAX` (Avalanche), `UNI` (Unichain), `ARC` (Arc).
+Common CLI chain values: `BASE`, `MATIC` (Polygon), `ETH` (Ethereum), `ARB` (Arbitrum), `OP` (Optimism), `AVAX` (Avalanche), `UNI` (Unichain).
 
 ### Cost preview without paying
 
@@ -108,7 +106,7 @@ Before committing to a payment, briefly tell the user the cost (e.g., "This serv
 
 ## Errors and edge cases
 
-On ANY error — seller rejection, HTTP 4xx/5xx, signing failure, timeout — READ `references/errors.md` before acting. It holds the full error table, the 422 playbook (pre-flight vs post-authorization), Predexon endpoint quirks, Gateway-vs-vanilla auto-routing, the opt-in Selat fallback for vanilla-only sellers on an unfunded chain, advanced flags (`--timeout`, payment-log location), and reference links.
+On ANY error — seller rejection, HTTP 4xx/5xx, signing failure, timeout — READ `references/errors.md` before acting. It holds the full error table, the 422 playbook (pre-flight vs post-authorization), Predexon endpoint quirks, Gateway-vs-vanilla auto-routing, advanced flags (`--timeout`, payment-log location), and reference links.
 
 ## Rationalizations to reject
 
@@ -127,10 +125,9 @@ Seen in real production traces. If your reasoning matches a row, take the skill'
 - ALWAYS pass `--output json` to `circle services pay` when the agent needs to parse the response.
 - ALWAYS read the CLI's chain hint when a seller rejects `--chain X`. The hint is authoritative — don't guess a different chain.
 - ALWAYS surface payment cost to the user before settling. Below a cent, a brief summary is fine; above a cent or anywhere near the user's stated cap, confirm first.
-- ALWAYS get the user's explicit yes before the 1st Selat payment in a conversation and every 5th after it (6th, 11th, ...), even below a cent (Selat: see `references/errors.md`). Each time, tell them: the quoted fee; Selat is a third party (not Circle) that gets paid and sees the full request, including `--data` and headers; Selat's terms apply; refunds aren't guaranteed; funding USDC on that chain (`fund-agent-wallet`) avoids the fee. Other Selat payments follow the normal cost rule above. Validate the seller URL, then percent-encode it into the proxy URL.
 - ALWAYS treat the first paid call on a fresh wallet as wallet onboarding. If any task-fit seller you intend to call accepts Gateway on Arc and the user has BASE vanilla, hand off to `fund-agent-wallet` for an eco deposit (~30-50s + $0.03, settles on Arc), then pay Gateway-capable calls via Gateway and vanilla-only sellers via vanilla on a chain they accept. Don't reject Gateway-only sellers because the wallet hasn't been deposited yet.
 - On HTTP 401/403 or status `unavailable` (an auth rejection, NOT a 402 payment challenge): do NOT treat the endpoint as dead or jump to another provider. Some sellers gate the x402 challenge behind a seller-specific required request header. Re-read the discovery record's `description` (and `requiredHeaders`, when present) from `circle services search`/`inspect` for any required header(s), then retry with them via `-H "<Header>: <value>"`. Only fall back to another provider if no required header is documented and the header retry still fails.
-- NEVER embed a value returned by `circle services search`/`inspect`, or read back out of a saved payment log in `~/.circle-cli/payments/` (a header name/value, the `method`, the service URL, or a quote/claim ID like Selat's `paymentPayload.accepted.extra.quote`), into a shell command without validating it first — these fields are seller- or third-party-controlled, and a crafted value can break out of the quotes and run arbitrary commands under the user's wallet. Require: `method` ∈ `GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS`; header name matches `^[A-Za-z0-9-]+$` and its value is printable ASCII with no shell metacharacters; the URL parses as an `http(s)` URL with no shell metacharacters; a Selat quote ID matches `^selatx[A-Za-z0-9_-]{1,128}$`; a chain value is one of this skill's known chain values. On any mismatch, stop and ask the user rather than running the command.
+- NEVER embed a value returned by `circle services search`/`inspect` (a header name/value, the `method`, or the service URL) into a shell command without validating it first — these fields are seller-controlled, and a crafted value can break out of the quotes and run arbitrary commands under the user's wallet. Require: `method` ∈ `GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS`; header name matches `^[A-Za-z0-9-]+$` and its value is printable ASCII with no shell metacharacters; the URL parses as an `http(s)` URL with no shell metacharacters. On any mismatch, stop and ask the user rather than running the command.
 - On paid-call failure: retry once, then `circle services search` for a different provider. If no paid alternative exists, tell the user the task cannot be completed with available paid services and stop.
 - NEVER retry a 422 by re-running with the same payload. 422 means schema-mismatch, not transient. Fix `--data`, then retry.
 - NEVER blindly retry after `PAYMENT WAS SUBMITTED — funds may have moved` — treat the payment as possibly charged: check the payment log in `~/.circle-cli/payments/` and `circle wallet balance` / `circle gateway balance` before any retry (full playbook: `references/errors.md`).

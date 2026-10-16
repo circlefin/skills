@@ -231,6 +231,7 @@ Both App Kit and Bridge Kit have two error categories:
 - ALWAYS use string chain names (e.g., `"Arc"`, `"Arc_Testnet"`, `"Base_Sepolia"`), not numeric chain IDs.
 - ALWAYS default to testnet. Require explicit user confirmation before targeting mainnet.
 - ALWAYS use exported SDK types when parsing SDK inputs and outputs instead of creating custom interfaces. This minimizes type errors.
+- ALWAYS verify destination settlement from the mint receipt when the application must credit a payment. `result.state === "success"` and a mint `txHash` prove the mint call succeeded, not that the expected USDC Transfer occurred. READ `references/settlement-verification.md`.
 
 ## Reference Links
 

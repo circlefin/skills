@@ -1,0 +1,39 @@
+{
+  "service_name": "Autonomous Crypto Intelligence API",
+  "provider": "Autonomous Crypto Intelligence Labs",
+  "production_url": "https://agent-payment-gateway.vercel.app",
+  "mcp_url": "https://agent-payment-gateway.vercel.app/v1/mcp",
+  "catalog_url": "https://agent-payment-gateway.vercel.app/.well-known/circle-service.json",
+  "openapi_url": "https://agent-payment-gateway.vercel.app/openapi.json",
+  "network": "BASE",
+  "currency": "USDC",
+  "usdc_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "receiving_wallet": "0x43f9a721B59C247B6258e72A1Bf5A384b64F8A38",
+  "tools": [
+    {
+      "name": "crypto_snapshot",
+      "price": "0.020000",
+      "endpoint": "/v1/crypto/snapshot"
+    },
+    {
+      "name": "token_intelligence",
+      "price": "0.050000",
+      "endpoint": "/v1/crypto/token-intelligence"
+    },
+    {
+      "name": "market_analysis",
+      "price": "0.100000",
+      "endpoint": "/v1/crypto/market-analysis"
+    },
+    {
+      "name": "wallet_analysis",
+      "price": "0.150000",
+      "endpoint": "/v1/crypto/wallet-analysis"
+    },
+    {
+      "name": "deep_crypto_analysis",
+      "price": "0.250000",
+      "endpoint": "/v1/crypto/deep-analysis"
+    }
+  ]
+}

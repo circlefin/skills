@@ -8,7 +8,7 @@ requirements:
 
 ## Overview
 
-User-controlled wallets are non-custodial wallets where end users maintain control over their private keys and assets. Users authorize all sensitive operations (transactions, signing, wallet creation) through a challenge-response model that ensures user consent before execution. Multi-chain support includes EVM chains, Solana, and Aptos.
+User-controlled wallets are non-custodial: end users keep control of their private keys and assets, and authorize every sensitive operation (wallet creation, transactions, signing) through a challenge-response flow. Supports EVM chains, Solana, and Aptos.
 
 ## Prerequisites / Setup
 
@@ -20,7 +20,7 @@ npm install @circle-fin/user-controlled-wallets@latest @circle-fin/w3s-pw-web-sd
 
 ### Vite Configuration
 
-The SDKs depends on Node.js built-ins (`buffer`, `crypto`, etc.) that are not available in the browser. Add `vite-plugin-node-polyfills` to your Vite config:
+The SDKs depend on Node.js built-ins (`buffer`, `crypto`, etc.) that browsers lack. Add `nodePolyfills()`:
 
 ```typescript
 import { defineConfig } from "vite";
@@ -44,7 +44,7 @@ CIRCLE_APP_ID=           # App ID from Wallets > User Controlled > Configurator
 
 ### Backend SDK Initialization
 
-Uses `@circle-fin/user-controlled-wallets` for all server-side operations (user creation, challenge creation, transaction queries).
+`@circle-fin/user-controlled-wallets` handles all server-side operations (user creation, challenge creation, transaction queries).
 
 ```typescript
 import { initiateUserControlledWalletsClient, Blockchain, TokenBlockchain } from "@circle-fin/user-controlled-wallets";
@@ -56,7 +56,7 @@ const circleClient = initiateUserControlledWalletsClient({
 
 ### Frontend SDK Initialization
 
-Uses `@circle-fin/w3s-pw-web-sdk` for user-facing operations (challenge execution, auth flows, PIN/OTP/OAuth UI).
+`@circle-fin/w3s-pw-web-sdk` handles user-facing operations (challenge execution, auth flows, PIN/OTP/OAuth UI).
 
 ```typescript
 import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk";
@@ -64,54 +64,36 @@ import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk";
 const sdk = new W3SSdk({ appSettings: { appId: circleAppId } });
 ```
 
-IMPORTANT: You must call `sdk.getDeviceId()` after SDK initialization. This establishes a session with Circle's service via an iframe. Without this call, `sdk.execute()` will silently fail.
+IMPORTANT: Call `sdk.getDeviceId()` right after initialization. It establishes the iframe session with Circle; without it, `sdk.execute()` fails silently.
 
-For email OTP and social login, the SDK must be initialized with a login callback as the second argument. See the corresponding reference files for details.
+For email OTP and social login, pass a login callback as the second constructor argument (see the corresponding reference).
 
 ## Core Concepts
 
 ### Account Types
 
-User-controlled wallets support **EOA** and **SCA** account types, chosen at wallet creation.
+Chosen at wallet creation. Supported blockchains per type: https://developers.circle.com/wallets/account-types
 
-**EOA (Externally Owned Account)**: No creation fees, higher TPS, broadest chain support (EVM, Solana, Aptos). Requires native tokens for gas on EVM chains (on Arc, that gas asset is USDC — there is no separate native token). Gas sponsorship only available on Solana via `feePayer`.
-
-**SCA (Smart Contract Account)**: ERC-4337 account abstraction. Gas sponsorship via Circle Gas Station paymaster, batch operations, flexible key management. EVM-only (no Solana/Aptos). First outbound transaction incurs gas for lazy deployment. Avoid on Ethereum mainnet due to high gas -- use on L2s (Arbitrum, Base, Polygon, Optimism).
-
-For supported blockchains by account type: https://developers.circle.com/wallets/account-types
+- **EOA (Externally Owned Account)**: No creation fees, higher TPS, broadest chain support (EVM, Solana, Aptos). Requires native tokens for gas on EVM chains (on Arc the gas asset is USDC -- there is no separate native token). Gas sponsorship only on Solana, via `feePayer`.
+- **SCA (Smart Contract Account)**: ERC-4337. Gas sponsorship via the Circle Gas Station paymaster, batch operations, flexible key management. EVM-only (no Solana/Aptos). The first outbound transaction incurs gas for lazy deployment.
 
 ### Architecture
 
-User-controlled wallets involve three parties:
+| Party | Role |
+| --- | --- |
+| End user (browser/mobile) | Authenticates (PIN, email OTP, or social login) and approves every sensitive operation in Circle's hosted UI via `@circle-fin/w3s-pw-web-sdk`. Keeps full control of private keys -- neither the developer nor Circle can act on the user's behalf. |
+| Developer service (backend) | Holds the Circle API key, manages user sessions, tracks usage, and enforces app-level guardrails (e.g., spending limits, allowlisted addresses, rate limiting). Calls Circle's API via `@circle-fin/user-controlled-wallets`. Requires a [Circle Developer Console](https://developers.circle.com/w3s/circle-developer-account) account; for developer account setup, see the `use-developer-controlled-wallets` skill. |
+| Circle Wallet Service (API) | Wallet creation, transaction submission, MPC-based key management, and blockchain interaction. Enforces platform-level compliance screening (e.g., OFAC sanctions checks). |
 
-1. **End User (Client)** -- The person using a web app or mobile app. They interact with the developer's frontend, authenticate (PIN, email OTP, or social login), and approve all sensitive operations (wallet creation, transactions, signing) through Circle's hosted UI via `@circle-fin/w3s-pw-web-sdk`. Users retain full control of their private keys -- neither the developer nor Circle can act on their behalf.
-
-2. **Developer Service (Backend)** -- The developer's own server. It holds the Circle API key, manages user sessions, tracks usage, and enforces application-level guardrail rules (e.g., spending limits, allowlisted addresses, rate limiting). It submits requests to Circle's API using `@circle-fin/user-controlled-wallets`. Developers register a developer account through the [Circle Developer Console](https://developers.circle.com/w3s/circle-developer-account) to get access to Circle Wallet services. For developer-specific account setup, see the `use-developer-controlled-wallets` skill.
-
-3. **Circle Wallet Service (API)** -- Circle's infrastructure that manages wallet creation, transaction submission, key management (MPC-based), and blockchain interactions. It provides the non-custodial guarantee: developers get read access for security monitoring and auditing, while users keep full control of their wallets and assets. Circle enforces platform-level compliance screening (e.g., OFAC sanctions checks) on transactions.
-
-**Request flow:**
-
-```
-End User (browser/mobile)
-    |  authenticates & approves challenges
-    v
-Developer Service (backend server)
-    |  adds API key, enforces app-level guardrails, tracks usage
-    v
-Circle Wallet Service (API)
-    |  manages wallets, enforces compliance screening, submits transactions
-    v
-Blockchain
-```
+Request flow: End user -> Developer service (adds API key, enforces guardrails) -> Circle Wallet Service (compliance screening, submission) -> Blockchain.
 
 ### Challenge-Response Model
 
 All sensitive operations (wallet creation, transactions, signing) follow this pattern:
 
-1. Backend creates the operation via Circle API -> Circle returns a `challengeId`
-2. Frontend calls `sdk.setAuthentication({ userToken, encryptionKey })` then `sdk.execute(challengeId, callback)` -> user approves via Circle's hosted UI
-3. Callback fires with result or error
+1. Backend creates the operation via the Circle API -> Circle returns a `challengeId`.
+2. Frontend calls `sdk.setAuthentication({ userToken, encryptionKey })`, then `sdk.execute(challengeId, callback)` -> user approves in Circle's hosted UI.
+3. The callback fires with the result or error.
 
 ### Authentication Methods
 
@@ -121,66 +103,52 @@ All sensitive operations (wallet creation, transactions, signing) follow this pa
 | Email OTP | SMTP config | SDK login callback after OTP verification |
 | Social Login | OAuth client ID | SDK login callback after OAuth redirect |
 
-### Developer Access and Limitations
+### Access Boundaries
 
-Developers can **read** wallet data, transaction history, and user information -- either through the [Circle Developer Console](https://console.circle.com/) UI or programmatically via the API. However, developers do **not** have access to users' private keys and **cannot** control user wallets to send transactions, sign messages, or perform any on-chain operations on a user's behalf. All such operations require the user to authorize them through the challenge-response model.
+- **Developers** can read wallet data, transaction history, and user information (Circle Developer Console or API) for security monitoring and auditing. They cannot access private keys, send transactions, sign messages, or perform any on-chain operation for a user -- the user must authorize each one via a challenge.
+- **Recovery**: Developers cannot recover a wallet for a user who loses their authentication method (social account, email, or PIN plus security questions); recovery depends entirely on the user re-authenticating. Tell users this during onboarding.
+- **Users** can access only their own wallets and resources -- not other users' and not developer-controlled wallets (the two wallet types are fully isolated).
 
-Developers also **cannot** help a user recover their wallet if the user loses access to their authentication method (social account, email, or PIN code and security questions). Account recovery is entirely dependent on the user's ability to re-authenticate. Inform users of this limitation during onboarding so they understand the importance of maintaining access to their chosen authentication method.
+### Transaction Lifecycle
 
-### User Access and Limitations
+Transfers and contract executions are asynchronous. Poll `circleClient.getTransaction({ userToken, id })` until a terminal state.
 
-Users can only access their own wallets and resources. They have **no** access to other users' wallets, transactions, or any other resources. Users also have **no** access to developer-controlled wallets or resources -- the two wallet types are fully isolated from each other.
+**Happy path:** `INITIATED` -> `QUEUED` -> `CLEARED` -> `SENT` -> `CONFIRMED` -> `COMPLETE`. `CONFIRMED` may be skipped or arrive out of order; instant-finality chains such as Arc go `SENT` -> `COMPLETE`.
+
+| State | Terminal | Meaning |
+| --- | --- | --- |
+| `INITIATED` | No | Request accepted, not yet validated or checked |
+| `QUEUED` | No | In the processing queue |
+| `CLEARED` | No | Passed initial checks and risk screening |
+| `SENT` | No | Submitted to the blockchain, awaiting confirmation |
+| `STUCK` | No | Fee parameters are below the chain's current required fee -- cancel or accelerate the transaction |
+| `CONFIRMED` | No | Included in a block, awaiting finality |
+| `COMPLETE` | Yes | Succeeded and finalized on-chain |
+| `FAILED` | Yes | Reverted or hit an unrecoverable error |
+| `DENIED` | Yes | Rejected by risk screening |
+| `CANCELLED` | Yes | Cancelled (allowed in `INITIATED`, `QUEUED`, or `SENT`) |
+
+Debug `FAILED` or `DENIED` transactions with [Transaction Errors](https://developers.circle.com/wallets/asynchronous-states-and-statuses#transaction-errors).
 
 ## Implementation Patterns
 
-> **Note:** The reference code snippets use `localStorage` to achieve a quick working example only. Do not use `localStorage` in production.
+READ the reference for the user's request before writing code. Reference snippets use `localStorage` only for a quick working example (see Security Rules for production storage).
 
-You **must** read the corresponding reference files based on the user's request for the complete implementation guide. Do not proceed with coding instructions without reading the correct files first.
-
-- **Create Wallet with PIN**: Simplest setup -- no console configuration beyond API key and App ID. Users set a PIN and security questions through Circle's hosted UI. READ `references/create-wallet-pin.md`.
-
-- **Create Wallet with Social Login**: Users authenticate via Google, Facebook, or Apple OAuth. Requires OAuth client ID configured in Circle Console. READ `references/create-wallet-social-login.md`.
-
-- **Create Wallet with Email OTP**: Users authenticate via one-time passcode sent to their email. Requires SMTP configuration in Circle Console. READ `references/create-wallet-email-otp.md`.
-
-- **Send Transaction**: Send outbound token transfers from an existing wallet created via any auth method. Includes fee estimation, transaction acceleration, and cancellation. READ `references/send-transaction.md`.
-
-- **Sign Messages**: Sign messages from a user-controlled wallet. Covers EIP-191 message signing, EIP-712 typed data, and raw transaction signing. READ `references/sign-message.md`.
-
-- **Execute Smart Contracts**: Execute smart contract functions via ABI signature or raw calldata. Includes gas estimation for contract execution. READ `references/contract-execution.md`.
-
-- **Wallet Management**: Update wallet metadata. READ `references/wallet-management.md`.
-
-## Transaction Lifecycle
-
-All on-chain operations (transfers, contract executions) follow the same asynchronous state machine. Poll with `circleClient.getTransaction({ userToken, id })` until a terminal state is reached.
-
-**Happy path:** `INITIATED` -> `CLEARED` -> `QUEUED` -> `SENT` -> `CONFIRMED` -> `COMPLETE`
-
-**Intermediate states:**
-- `INITIATED` -- Request accepted, not yet validated or checked.
-- `WAITING` -- In queue for validation and compliance checks.
-- `CLEARED` -- Finish compliance checks.
-- `QUEUED` -- Queued for submission to the blockchain.
-- `SENT` -- Submitted to the blockchain, awaiting confirmation.
-- `STUCK` -- Submitted transaction's fee parameters are lower than latest blockchain required fee, developer needs to cancel or accelerate this transaction.
-- `CONFIRMED` -- Included in a block, awaiting finality.
-
-**Terminal states:**
-- `COMPLETE` -- Transaction succeeded and is finalized on-chain.
-- `FAILED` -- Transaction reverted or encountered an unrecoverable error.
-- `DENIED` -- Transaction was rejected by risk screening.
-- `CANCELLED` -- Transaction was cancelled before on-chain submission.
-
-Always wait until a terminal state before treating any transaction as done. For debugging failed or denied transactions, see [Transaction Errors](https://developers.circle.com/w3s/asynchronous-states-and-statuses#transaction-errors).
+- **Create wallet with PIN**: Simplest setup -- no console configuration beyond API key and App ID; users set a PIN and security questions in Circle's hosted UI. READ `references/create-wallet-pin.md`.
+- **Create wallet with social login**: Google, Facebook, or Apple OAuth; requires an OAuth client ID in the Circle Console. READ `references/create-wallet-social-login.md`.
+- **Create wallet with email OTP**: One-time passcode sent by email; requires SMTP configuration in the Circle Console. READ `references/create-wallet-email-otp.md`.
+- **Send transaction**: Outbound token transfers from a wallet created with any auth method, plus fee estimation, acceleration, and cancellation. READ `references/send-transaction.md`.
+- **Sign messages**: EIP-191 messages, EIP-712 typed data, and raw transactions. READ `references/sign-message.md`.
+- **Execute smart contracts**: ABI signature or raw calldata, plus gas estimation. READ `references/contract-execution.md`.
+- **Wallet management**: Update wallet metadata. READ `references/wallet-management.md`.
 
 ## Error Handling
 
 | Error Code | Meaning | Action |
 | --- | --- | --- |
-| 155106 | User already initialized | Fetch existing wallets instead of creating |
-| 155104 | Invalid user token | Re-authenticate user (token expired) |
-| 155101 | Invalid device token / User not found | Re-create device token or user |
+| 155106 | User already initialized | Fetch existing wallets (`listWallets`) instead of creating |
+| 155104 | Invalid user token (expired) | Re-authenticate: PIN calls `createUserToken` again; email OTP and social login repeat the login |
+| 155101 | Existing user already created with the provided userId | Skip `createUser`; call `createUserToken` for the existing user |
 | 155130 | OTP token expired | Request new OTP |
 | 155131 | OTP token invalid | Request new OTP |
 | 155133 | OTP value invalid | User should re-enter code |
@@ -203,16 +171,16 @@ Always wait until a terminal state before treating any transaction as done. For 
 
 ### Best Practices
 
-- ALWAYS read the correct reference files before implementing.
-- ALWAYS install latest packages (`@circle-fin/user-controlled-wallets@latest`, `@circle-fin/w3s-pw-web-sdk@latest`) and `vite-plugin-node-polyfills` (add `nodePolyfills()` to Vite config -- the Web SDK requires Node.js built-in polyfills).
-- ALWAYS call `sdk.getDeviceId()` after init and `sdk.setAuthentication({ userToken, encryptionKey })` before `sdk.execute()`. Without `getDeviceId()`, execute silently fails.
-- NEVER use SCA on Ethereum mainnet (high gas). Use EOA on mainnet, SCA on L2s.
+- ALWAYS install the `@latest` SDKs (`@circle-fin/user-controlled-wallets`, `@circle-fin/w3s-pw-web-sdk`) and add `nodePolyfills()` from `vite-plugin-node-polyfills` to the Vite config.
+- ALWAYS call `sdk.getDeviceId()` after init and `sdk.setAuthentication({ userToken, encryptionKey })` before `sdk.execute()`.
+- NEVER use SCA on Ethereum mainnet (high gas). Use EOA on mainnet, SCA on L2s (Arbitrum, Base, Polygon, Optimism).
 - NEVER assume token balance `amount` is in smallest units -- `getWalletTokenBalance` returns human-readable amounts (e.g., "20" for 20 USDC).
 - ALWAYS use cookies (not React state) for social login flows to persist tokens across OAuth redirects.
+- ALWAYS wait for a terminal transaction state (see Transaction Lifecycle) before treating a transaction as done.
 - ALWAYS default to testnet. Require explicit user confirmation before targeting mainnet.
-- ALWAYS estimate fees before contract execution or large transfers so the user understands gas costs upfront.
-- ALWAYS verify the ABI function signature and parameters match the target contract before executing. Incorrect signatures will revert and waste gas.
-- ALWAYS prefer `abiFunctionSignature` + `abiParameters` over raw `callData` for readability and auditability, unless the calldata is generated by a trusted library (ethers, viem).
+- ALWAYS estimate fees before contract execution or large transfers so the user knows the gas cost upfront.
+- ALWAYS verify the ABI function signature and parameters match the target contract before executing -- a wrong signature reverts and wastes gas.
+- ALWAYS prefer `abiFunctionSignature` + `abiParameters` over raw `callData` for readability and auditability, unless the calldata comes from a trusted library (ethers, viem).
 
 ## Alternatives
 

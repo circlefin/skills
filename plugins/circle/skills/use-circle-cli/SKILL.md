@@ -8,22 +8,22 @@ requirements:
 
 ## Overview
 
-The Circle CLI (`@circle-fin/cli`, command `circle`) is a holistic stablecoin CLI for AI agents. It surfaces Circle's full agent-facing stack — wallet management, cross-chain transfers, paid services, Gateway/Nanopayments, smart contracts, spending policy, transaction operations, and Circle's own skill catalog — through one consistent binary. New capabilities ship continuously; this skill is the **front door** that introduces the CLI broadly and routes to specialized skills for deep flows.
+The Circle CLI (`@circle-fin/cli`, command `circle`) is a stablecoin CLI for AI agents. One binary covers Circle's agent-facing stack — wallet management, cross-chain transfers, paid services, Gateway/Nanopayments, smart contracts, spending policy, transaction operations, and Circle's own skill catalog. This skill is the **front door**: it introduces the CLI and routes deep flows to specialized skills.
 
-If the user is doing something narrow (paying for a service, setting up the wallet for the first time, configuring a spending limit), use one of the dedicated skills under **Alternatives** below. Use *this* skill when the user is exploring what the CLI can do, when they're doing something that doesn't have its own dedicated skill yet (e.g., bridging, smart contract execution), or when you need a quick orientation across the full command surface.
+Use *this* skill to explore the CLI, for flows without a dedicated skill (e.g., bridging, smart contract execution, transactions), or for a quick orientation across the command surface. Route narrower flows per **Common end-to-end flows** below.
 
 ## Install & verify
 
 ```bash
 # Install only if missing:
 command -v circle >/dev/null || npm install -g @circle-fin/cli
-# Check the version (also surfaces any update notice from Circle's server):
+# Check the version (also prints an update notice when npm has a newer release):
 circle --version
 ```
 
 ## Discoverability: always ask `--help`
 
-The CLI is self-documenting. **Whenever the agent is unsure about a verb, flag, output shape, or whether a command exists, run `--help` on the relevant scope first** — don't guess flags, don't invent commands.
+**Whenever you're unsure about a verb, flag, output shape, or whether a command exists, run `--help` at the relevant scope first** — don't guess flags or invent commands. The help text reflects the installed version and wins over this skill when they disagree.
 
 ```bash
 # Scope pattern — top-level, per command group, per verb:
@@ -36,11 +36,9 @@ circle services pay --help             # flags and examples for `circle services
 circle bridge transfer --help          # flags and output shape for cross-chain bridging
 ```
 
-The CLI ships new commands and flags faster than this document. **Always prefer `--help` output over what's documented here when they disagree** — the help text reflects the installed version, this skill might lag.
-
 ## Command surface (high-level)
 
-Top-level command groups, organized by what the user typically wants to do:
+Top-level command groups, by user intent:
 
 ### Wallet & identity
 
@@ -52,7 +50,7 @@ Top-level command groups, organized by what the user typically wants to do:
 | `circle wallet balance` | Show token balances for a wallet on a chain |
 | `circle wallet transfer` | Send USDC (or another supported token) from this wallet to another address on the same chain |
 | `circle wallet fund` | Open a fiat on-ramp or render a deposit QR code so the user can fund the wallet |
-| `circle wallet limit show/set/reset` | View and change spending policy (mainnet only; set/reset require human OTP) |
+| `circle wallet limit` (view), `limit set`, `limit reset` | View and change spending policy (mainnet only; set/reset require human OTP) |
 | `circle wallet execute` | Execute a smart contract function (any chain Circle supports) |
 | `circle terms show/accept/reset` | Manage Circle CLI Terms of Use acceptance (gates wallet commands; never accept on the user's behalf without consent) |
 
@@ -63,7 +61,7 @@ Top-level command groups, organized by what the user typically wants to do:
 | `circle bridge transfer` | Bridge USDC to another blockchain via CCTP (~8–20s on fast chains, longer on slow chains) |
 | `circle bridge status` | Check progress of a bridge transfer |
 | `circle bridge get-fee` | Show CCTP fee schedule |
-| `circle gateway deposit` | Move on-chain USDC into Circle Gateway for nanopayments (eco lands on Arc ~50-60s for $0.03; direct stays on source chain) |
+| `circle gateway deposit` | Move on-chain USDC into Circle Gateway for nanopayments (eco lands on Arc in ~30s for a small fee; direct stays on source chain) |
 | `circle gateway balance` | Show Gateway / Nanopayments balance per chain |
 | `circle gateway withdraw` | Move Gateway balance back to a wallet (same-chain only in v1) |
 
@@ -98,13 +96,11 @@ Top-level command groups, organized by what the user typically wants to do:
 | `circle blockchain list` | List supported blockchains with their public RPC defaults |
 | `circle blockchain config` | Inspect or set per-chain RPC overrides |
 | `circle skill list/info/install/update` | Discover and install Circle skills from the `circlefin/skills` catalog |
-| `circle feedback submit` | Send product feedback about the CLI itself (bug, question, or UX friction) to Circle; requires a mainnet session |
-
-This list will keep growing as Circle ships more capabilities. **For any unfamiliar command, run `<command> --help`** — it is authoritative and reflects the CLI you have installed, not this document.
+| `circle feedback submit` | Send product feedback about the CLI itself (bug, question, or UX friction) to Circle |
 
 ## Common end-to-end flows
 
-For each common flow, there's a dedicated skill that handles the full walkthrough. If the user's task matches one of these, route to the named skill.
+If the user's task matches a row, route to the named skill.
 
 | User intent | Skill to use |
 | --- | --- |
@@ -117,11 +113,11 @@ For each common flow, there's a dedicated skill that handles the full walkthroug
 | "Manage transactions / cancel a pending tx" | This skill — `circle transaction list/cancel/accelerate` |
 | "Build with Circle SDKs in an app" | One of the SDK-flavored `use-*` or `bridge-*` skills (those are for app code generation, not agent CLI use) |
 
-If the task fits a dedicated skill, hand off there — that skill has the gotchas and decision trees baked in (some, like `pay-via-agent-wallet` and `fund-agent-wallet`, also ship `allowed-tools` whitelists). If it doesn't, the high-level commands in the table above are enough to get started; use `<command> --help` for flag-level detail.
+Dedicated skills carry the gotchas and decision trees (and, for `pay-via-agent-wallet` and `fund-agent-wallet`, `allowed-tools` whitelists), so hand off whenever one fits.
 
 ## Report friction (feedback)
 
-The CLI can send feedback to Circle with `circle feedback submit` (`--category BUG|QUESTION|FEEDBACK`). Submit proactively when the CLI itself causes friction — an unexpected error, output that contradicts `--help`, or a missing capability — but not for user mistakes or expected validation errors. It requires a mainnet session; never force a login just to file feedback. READ `references/cli-operations.md` for triggers, guardrails, and the `--recent-commands` enrichment.
+File feedback with `circle feedback submit` per the feedback rule below. READ `references/cli-operations.md` for triggers, categories, guardrails, and the `--recent-commands` enrichment.
 
 ## Rules
 
@@ -134,17 +130,17 @@ The CLI can send feedback to Circle with `circle feedback submit` (`--category B
 - Treat the CLI as the source of truth for the user's wallet state. Don't infer balances or transaction status — query the CLI fresh.
 - Default to mainnet for the agent wallet flow unless the user explicitly requests testnet. Spending policy is mainnet-only.
 - For routine permissionless tasks the user has already asked for, act first and summarize after — don't ask for re-confirmation on routine read-only operations like `wallet balance` or `services search`.
-- PROACTIVELY file feedback with `circle feedback submit` (pick one `--category`: `BUG`, `QUESTION`, or `FEEDBACK`) when the CLI itself causes friction (unexpected error, confusing output, missing capability). Don't file for user mistakes or expected validation errors, and never force a login just to submit. See **Report friction (feedback)**.
+- PROACTIVELY file feedback with `circle feedback submit` (pick one `--category`: `BUG`, `QUESTION`, or `FEEDBACK`) when the CLI itself causes friction — an unexpected error, output that contradicts `--help`, confusing output, or a missing capability. Don't file for user mistakes or expected validation errors. Feedback requires a mainnet session; never force a login just to submit.
 
 ## Staying current
 
-Surface version/update guidance to the user when relevant — start of session, after a long gap, or when a command behaves unexpectedly. `circle --version` surfaces update notices; `npm install -g @circle-fin/cli@latest` updates the CLI; `circle skill update --tool <tool>` (or `npx skills update`) updates installed skills. These mutate the user's system — ask before running them, don't run them unprompted. READ `references/cli-operations.md` for the exact commands.
+Surface update guidance when relevant — start of session, after a long gap, or when a command behaves unexpectedly. `circle --version` shows update notices; `circle update --yes` updates the CLI; `circle skill update --tool <tool>` updates installed skills. On `VERSION_BLOCKED`, ask the user to update the CLI, then retry. Updates mutate the user's system — ask before running them, never run them unprompted. READ `references/cli-operations.md` for the exact commands, fallbacks, and `VERSION_BLOCKED` details.
 
 ## Reference Links
 
 - Full setup walkthrough: https://agents.circle.com/skills/setup.md
 - Circle Developer Docs: https://developers.circle.com/llms.txt — Always read this when looking for source documentation on Circle products
-- x402 protocol concepts: https://developers.circle.com/gateway/nanopayments/concepts/x402
+- x402 protocol concepts: https://developers.circle.com/x402-facilitators/x402
 - Service Discovery skill (paid services walkthrough): https://agents.circle.com/services/SKILL.md
 - Discovery API OpenAPI spec: https://agents.circle.com/.well-known/openapi.json
 - Circle Agent Card (a2a): https://agents.circle.com/.well-known/a2a.json
@@ -153,11 +149,9 @@ Surface version/update guidance to the user when relevant — start of session, 
 
 ## Alternatives
 
-For the agent-wallet flows, route to the dedicated skill per the **Common end-to-end flows** table above: `use-agent-wallet` (setup/login/Terms/create), `pay-via-agent-wallet` (paid x402 services), `fund-agent-wallet` (add USDC / Gateway deposit), `agent-wallet-policy` (spending limits).
+For agent-wallet flows, route per the **Common end-to-end flows** table above.
 
-Trigger one of the SDK-flavored skills (`use-usdc`, `use-gateway`, `bridge-tokens`, `swap-tokens`, `use-circle-wallets`, `use-developer-controlled-wallets`, `use-user-controlled-wallets`, `use-modular-wallets`, `use-smart-contract-platform`, `use-arc`) instead when the user is writing **application code** with Circle SDKs (e.g., `@circlefin/app-kit`, `@circlefin/bridge-kit`) or wants architectural guidance (choosing a wallet type, integrating CCTP, deploying contracts).
-
-The CLI is for **agent-flow use** (an AI agent operating on behalf of a user). The SDK skills are for **code-generation use** (helping a developer write application code).
+The CLI is for **agent-flow use** (an AI agent acting for a user). Trigger one of the SDK-flavored skills (`use-usdc`, `use-gateway`, `bridge-tokens`, `swap-tokens`, `use-circle-wallets`, `use-developer-controlled-wallets`, `use-user-controlled-wallets`, `use-modular-wallets`, `use-smart-contract-platform`, `use-arc`) instead when the user is writing **application code** with Circle SDKs (e.g., `@circle-fin/app-kit`, `@circle-fin/bridge-kit`) or wants architectural guidance (choosing a wallet type, integrating CCTP, deploying contracts).
 
 ---
 

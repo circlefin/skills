@@ -1,6 +1,6 @@
 # Solana Kit Adapter
 
-Reference implementation for token swaps on Solana using the Solana Kit adapter. Includes examples for both App Kit and standalone Swap Kit.
+Token swaps on Solana with the Solana Kit private-key adapter, for App Kit and standalone Swap Kit.
 
 ## Setup
 
@@ -15,13 +15,12 @@ npm install @circle-fin/swap-kit @circle-fin/adapter-solana-kit @solana/kit @sol
 ## Environment Variables
 
 ```
-SOLANA_PRIVATE_KEY=       # Solana wallet private key (base58)
-KIT_KEY=                  # Optional; server-side authenticated requests only
+SOLANA_PRIVATE_KEY=       # Solana wallet private key (Base58, Base64, or JSON byte array)
+SWAP_API_KEY=             # Optional Circle API key for authenticated swap requests
 ```
 
-The examples use permissionless mode and omit `kitKey`. A server may add
-`config: { kitKey: process.env.KIT_KEY }` when authenticated requests are
-needed. Never move that credential into browser code.
+The examples run keyless. To authenticate, add
+`config: { apiKey: process.env.SWAP_API_KEY }` to the `swap()` params.
 
 ## Using App Kit
 
@@ -32,10 +31,10 @@ import { inspect } from "util";
 
 const kit = new AppKit();
 
-const swapTokens = async (): Promise<void> => {
+export const swapTokens = async (): Promise<void> => {
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -56,7 +55,7 @@ const swapTokens = async (): Promise<void> => {
   }
 };
 
-void swapTokens();
+// Call swapTokens() only from the user's explicit confirm action, never at module startup.
 ```
 
 ## Using Swap Kit
@@ -68,10 +67,10 @@ import { inspect } from "util";
 
 const kit = new SwapKit();
 
-const swapTokens = async (): Promise<void> => {
+export const swapTokens = async (): Promise<void> => {
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -92,5 +91,5 @@ const swapTokens = async (): Promise<void> => {
   }
 };
 
-void swapTokens();
+// Call swapTokens() only from the user's explicit confirm action, never at module startup.
 ```

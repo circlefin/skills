@@ -1,8 +1,7 @@
 # Solana Browser Wallet Adapter
 
-Use App Kit `>=1.11.0` or Unified Balance Kit `>=1.3.1` with
-`@circle-fin/adapter-solana>=1.6.4`. These releases bundle for browsers and
-require no consumer-provided `Buffer`, `process`, or Node core polyfills.
+Requires `@circle-fin/adapter-solana>=1.6.4` with a browser-safe kit (see
+SKILL.md). Add no `Buffer`, `process`, or Node core polyfills.
 
 ## Setup
 
@@ -16,9 +15,11 @@ npm install @circle-fin/unified-balance-kit @circle-fin/adapter-solana @solana/w
 
 ## App Kit
 
-Accept the Wallet Standard provider supplied by the application's wallet
-integration (Phantom, Solflare, Backpack, etc.). The forwarded spend needs no
-destination wallet, so the user signs only on Solana.
+Pass the injected provider object (e.g. `window.phantom?.solana` or
+`window.solflare`) exposing `isConnected`, `publicKey`, `connect()`, `disconnect()`, and
+`signTransaction()` -- not a Wallet Standard `Wallet` object. The forwarded
+spend needs no destination wallet, so the user signs only on Solana. This page uses
+`@circle-fin/adapter-solana`, which takes `publicKey`; `@circle-fin/adapter-solana-kit` instead needs `address`.
 
 ```ts
 import { AppKit } from "@circle-fin/app-kit";
@@ -70,7 +71,7 @@ export async function createUnifiedBalanceActions(
 }
 ```
 
-For standalone Unified Balance Kit, change the initialization and call
+Standalone Unified Balance Kit: change the initialization and call
 `kit.getBalances()`, `kit.deposit()`, and `kit.spend()` directly:
 
 ```ts
@@ -79,15 +80,9 @@ import { UnifiedBalanceKit } from "@circle-fin/unified-balance-kit";
 const kit = new UnifiedBalanceKit();
 ```
 
-## Browser rules
+## Confirmation
 
-- Display the chains, recipient, and amount before calling `deposit()` or
-  `spend()`. The user's click on the enabled action button is the confirmation;
-  do not add a second prompt or synthetic confirmation object. Never call
-  `deposit()` or `spend()` automatically after review, from an effect, or during
-  render.
-- Never put private keys or Circle credentials in browser code.
-- Do not import the main `@circle-fin/adapter-circle-wallets` entry in a
-  browser; it is server-only.
-- Do not add manual Node or `Buffer` shims. Upgrade stale packages if a bundle
-  reports missing Node globals.
+Display the chains, recipient, and amount, then call `deposit()` or `spend()`
+only from the user's click on the enabled action button (no second prompt or
+synthetic confirmation object) -- never automatically after review, from an
+effect, or during render.

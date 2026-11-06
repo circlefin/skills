@@ -15,10 +15,12 @@ Modular Wallets are flexible smart contract accounts (MSCAs) that extend functio
 ### Installation
 
 ```bash
-npm install @circle-fin/modular-wallets-core viem
+npm install @circle-fin/modular-wallets-core viem@2.55.11
 # Passkey recovery also needs bip39:
 npm install bip39
 ```
+
+Install the exact `viem` version the SDK pins (`2.55.11` for `@circle-fin/modular-wallets-core@1.0.16`) so the app and SDK share one viem copy. After an SDK upgrade, re-check with `npm view @circle-fin/modular-wallets-core dependencies`.
 
 ### Environment Variables
 
@@ -26,7 +28,7 @@ Write or merge into the project's env file when scaffolding Modular Wallets:
 
 ```bash
 # .env.local (Next.js) or .env (Vite)
-# Paste your Client Key from Console → Keys → Client Keys (shown once; starts with TEST_API_KEY:)
+# Paste your Client Key from Console → Keys → Client Keys (shown once; starts with TEST_CLIENT_KEY:)
 NEXT_PUBLIC_CLIENT_KEY=
 NEXT_PUBLIC_CLIENT_URL=https://modular-sdk.circle.com/v1/rpc/w3s/buidl
 VITE_CLIENT_KEY=
@@ -56,7 +58,7 @@ Before using the SDK, complete setup (see [Console Setup](https://developers.cir
 | Polygon | Yes | Yes |
 | Unichain | Yes | Yes |
 
-For the latest supported blockchains: https://developers.circle.com/wallets/account-types.md (MSCA chain restrictions are in Rules below.)
+For the latest supported blockchains: https://developers.circle.com/wallets/supported-blockchains.md (MSCA chain restrictions are in Rules below.)
 
 ### Transport URL Path Segments
 
@@ -119,7 +121,7 @@ User operations submitted via `sendUserOperation` follow an asynchronous state m
 | `InvalidStateError` | Credential already registered (duplicate registration) | Switch to `WebAuthnMode.Login` instead of `Register` |
 | 155203 | User op nonce cannot be >0 when smart contract wallet hasn't been deployed | Send the first user operation with nonce 0; the MSCA deploys lazily on the first transaction |
 | 155505 | SCA wallet needs to wait for first-time transaction to be queued | Wait for the initial deployment transaction to complete before sending additional operations |
-| 155507 | SCA account not supported on the given blockchain | Use a [supported chain](https://developers.circle.com/wallets/account-types.md); MSCAs are not available on Ethereum mainnet, Solana, Aptos, or NEAR |
+| 155507 | SCA account not supported on the given blockchain | Use a [supported chain](https://developers.circle.com/wallets/supported-blockchains.md); MSCAs are not available on Ethereum (mainnet or Sepolia), Solana, Aptos, or NEAR |
 | 155509 | Paymaster policy required on mainnet before SCA account creation | Configure a Gas Station paymaster policy in Circle Console before creating mainnet accounts |
 | 155512 | Owner of the SCA wallet cannot be found | Verify the passkey credential or EOA owner is valid and accessible |
 | AA21 | Sender didn't pay prefund | Verify `paymaster: true` is set, or fund the smart account with native tokens for gas (USDC on Arc) |
@@ -147,7 +149,7 @@ Passkey errors (`NotAllowedError`, `SecurityError`, `InvalidStateError`) are sta
 ### Best Practices
 
 - ALWAYS read the correct reference files before implementing.
-- NEVER use Modular Wallets on Ethereum mainnet, Solana, Aptos, or NEAR -- MSCAs are only supported on select EVM chains (Arbitrum, Avalanche, Base, Monad, Optimism, Polygon, Unichain, Arc).
+- NEVER use Modular Wallets on Ethereum (mainnet or Sepolia), Solana, Aptos, or NEAR -- MSCAs are only supported on select EVM chains (Arbitrum, Avalanche, Base, Monad, Optimism, Polygon, Unichain, Arc).
 - ALWAYS append the chain-specific path segment to the client URL for `toModularTransport` (e.g., `${clientUrl}/polygonAmoy`).
 - ALWAYS use `parseUnits(value, 6)` for USDC amounts (6 decimals, not 18).
 - ALWAYS pass `paymaster: true` to sponsor gas via Circle Gas Station.
@@ -155,7 +157,7 @@ Passkey errors (`NotAllowedError`, `SecurityError`, `InvalidStateError`) are sta
 - ALWAYS default to testnet. Require explicit user confirmation before targeting mainnet.
 - ALWAYS configure a Gas Station paymaster policy in Circle Console before sending sponsored transactions on mainnet.
 - ALWAYS update transport URLs from testnet path segments (e.g., `/polygonAmoy`) to mainnet equivalents (e.g., `/polygon`) when migrating to production.
-- ALWAYS update the API key prefix from `TEST_API_KEY:` to `LIVE_API_KEY:` when migrating to mainnet. Testnet keys cannot be used with mainnets.
+- ALWAYS switch to a mainnet client key (`LIVE_CLIENT_KEY:` instead of `TEST_CLIENT_KEY:`) when migrating to mainnet. Testnet keys cannot be used with mainnets.
 - ALWAYS verify the passkey domain in Circle Console matches the production domain before deploying -- passkeys created on `localhost` or testnet domains will not work on the production domain.
 
 ## Alternatives

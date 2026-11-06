@@ -104,7 +104,7 @@ const typedData = {
       { name: "maxFee", type: "uint256" },
       { name: "spec", type: "TransferSpec" },
     ],
-  },
+  } as const,
   primaryType: "BurnIntent" as const,
 };
 
@@ -117,7 +117,7 @@ const account = privateKeyToAccount(
 );
 
 function toBytes32(address: `0x${string}`) {
-  return pad(address.toLowerCase(), { size: 32 });
+  return pad(address.toLowerCase() as `0x${string}`, { size: 32 });
 }
 
 async function main() {
@@ -146,8 +146,8 @@ async function main() {
         sourceSigner: toBytes32(account.address),
         destinationCaller: toBytes32(zeroAddress),
         value: TRANSFER_VALUE,
-        salt: `0x${randomBytes(32).toString("hex")}`,
-        hookData: "0x",
+        salt: `0x${randomBytes(32).toString("hex")}` as const,
+        hookData: "0x" as const,
       },
     };
 

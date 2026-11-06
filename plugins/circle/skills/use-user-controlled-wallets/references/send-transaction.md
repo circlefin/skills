@@ -1,29 +1,17 @@
 # Sending Transactions from User-Controlled Wallets
 
-## Overview
+Requires a wallet (created via PIN, email OTP, or social login) that holds the tokens to send.
 
-Complete flow for sending an outbound token transfer from a user-controlled wallet. The user must already have a wallet created (via PIN, email OTP, or social login). Requires both a frontend (Web SDK) and backend (Node.js SDK) component.
+## Flow
 
-## User Flow
-
-1. **Select wallet and view balance**: Your backend retrieves the user's wallets and token balances. The user selects which wallet to send from.
-
-2. **Enter transfer details**: The user provides the destination address, amount, and token. Your backend creates a transfer challenge using `tokenAddress`, returning a `challengeId`.
-
-3. **Authorize the transfer**: The Web SDK executes the challenge. The user enters their PIN (or confirms via their auth method) through Circle's hosted UI.
-
-4. **View transaction status**: Your backend polls Circle's API until the transaction reaches `COMPLETE` or a terminal state.
-
-## Prerequisites
-
-- **Existing wallet**: Created via PIN, email OTP, or social login (see corresponding `create-wallet-*.md` references).
-- **Token balance**: The wallet must hold tokens to transfer.
+1. Backend lists the user's wallets and token balances; the user picks the source wallet.
+2. The user enters destination, amount, and token. Backend creates a transfer challenge with `tokenAddress` and gets a `challengeId`.
+3. Frontend executes the challenge; the user authorizes in Circle's hosted UI (PIN or their auth method).
+4. Backend polls the transaction until a terminal state.
 
 ## Backend SDK Methods
 
 ### Get a session token (PIN-based auth)
-
-Returns `userToken` (valid for 60 minutes) and `encryptionKey`.
 
 ```ts
 const response = await circleClient.createUserToken({ userId });
@@ -39,7 +27,7 @@ const response = await circleClient.listWallets({ userToken });
 
 ### Get token balances
 
-Use this to check available funds and retrieve the `tokenAddress` for transfers.
+Returns available funds and each token's `tokenAddress`.
 
 ```ts
 const response = await circleClient.getWalletTokenBalance({
@@ -51,9 +39,9 @@ const response = await circleClient.getWalletTokenBalance({
 
 ### Create a transfer challenge
 
-For native tokens (ETH, MATIC, etc.), pass empty string as `tokenAddress`. For non-native tokens (e.g., USDC), pass the token's contract address. The `tokenAddress` can be obtained from `getWalletTokenBalance`.
+`tokenAddress`: empty string for native tokens (ETH, MATIC, etc.); the token contract address (from `getWalletTokenBalance`) for other tokens such as USDC.
 
-**On Arc, the native asset IS USDC** (`0x3600000000000000000000000000000000000000`). The empty-`tokenAddress` "native" balance and the USDC ERC-20 balance are the *same* pool of funds, not two assets — never show or sum them as separate balances. For USDC app logic on Arc, use the ERC-20 view (6 decimals).
+IMPORTANT: On Arc the native asset IS USDC (`0x3600000000000000000000000000000000000000`). The empty-`tokenAddress` native balance and the USDC ERC-20 balance are the same funds -- never show or sum them as separate balances. For USDC app logic on Arc, use the ERC-20 view (6 decimals).
 
 ```ts
 const response = await circleClient.createTransaction({
@@ -89,17 +77,19 @@ const response = await circleClient.listTransactions({
 
 ```ts
 const response = await circleClient.estimateTransferFee({
+  userToken,
   walletId,
   tokenAddress,
+  blockchain: blockchain as TokenBlockchain, // required with tokenAddress
   destinationAddress,
-  amounts,
+  amount: [amount],
 });
 // response.data: { low, medium, high } -- each tier includes gasLimit, gasPrice, maxFee, priorityFee, baseFee, networkFee
 ```
 
 ### Accelerate a pending transaction
 
-Resubmits with higher gas. Additional gas fees may be incurred. Only works while the transaction is still pending on-chain.
+Resubmits with higher gas; may incur additional gas fees. Works only while the transaction is still pending on-chain.
 
 ```ts
 const response = await circleClient.accelerateTransaction({
@@ -111,7 +101,7 @@ const response = await circleClient.accelerateTransaction({
 
 ### Cancel a pending transaction
 
-Best-effort -- cancellation may fail if the blockchain has already processed the original transaction. Gas fees may still be incurred.
+Best-effort: fails if the chain already processed the original transaction. Gas fees may still be incurred.
 
 ```ts
 const response = await circleClient.cancelTransaction({
@@ -123,7 +113,7 @@ const response = await circleClient.cancelTransaction({
 
 ## Frontend Component
 
-The user must already have a valid `userToken` + `encryptionKey` from a prior auth step. All challenge IDs returned by the backend SDK methods above (transfer, accelerate, cancel) are executed on the frontend using the same pattern:
+Execute every `challengeId` above (transfer, accelerate, cancel) the same way, using the `userToken` + `encryptionKey` from the auth step:
 
 ```ts
 sdk.setAuthentication({ userToken, encryptionKey });

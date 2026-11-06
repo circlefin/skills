@@ -19,7 +19,7 @@ This script:
 
 ## Critical warning
 
-Do **not** send USDC directly to the Gateway Wallet address or custody account. The funds will not be credited to the unified balance. You must submit a Gateway `deposit` instruction.
+Do **not** send USDC directly to the Gateway Wallet address or custody account with a standard SPL token transfer: that USDC is lost and is not credited to the unified balance. You must submit a Gateway `deposit` instruction.
 
 ## Runnable example
 

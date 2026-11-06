@@ -1,32 +1,24 @@
 # Creating User-Controlled Wallets with Social Login
 
-## Overview
+Shown with Google OAuth; Facebook and Apple follow the same pattern (see Supported Social Providers).
 
-Complete flow for creating user-controlled wallets using Google OAuth. The same pattern works for Facebook and Apple. Requires both a frontend (Web SDK) and backend (Node.js SDK) component.
+## Flow
 
-## User Flow
+Each step maps to one frontend handler:
 
-1. **Click "Create device token"**: The Web SDK generates a `deviceId` identifying the user's browser. Your backend exchanges it for `deviceToken` and `deviceEncryptionKey`.
-
-2. **Click "Login with Google"**: The Web SDK starts the Google OAuth flow. After sign-in, Circle validates the login and invokes the SDK callback with `userToken` and `encryptionKey`.
-
-3. **Click "Initialize user"**: Your backend initializes the user using `userToken`. Circle returns a `challengeId` to create a wallet. Error code 155106 means the user already has wallets -- load them instead.
-
-4. **Click "Create wallet"**: The Web SDK executes the challenge. The user approves, and Circle creates the wallet.
+1. `handleCreateDeviceToken` -- The Web SDK provides a `deviceId` identifying the browser. The backend exchanges it via `createDeviceTokenForSocialLogin` for `deviceToken` and `deviceEncryptionKey`. Call this before starting OAuth.
+2. `handleLoginWithGoogle` -- The Web SDK starts the Google OAuth flow. After sign-in, Circle validates the login and the SDK login callback receives `userToken` and `encryptionKey`.
+3. `handleInitializeUser` -- The backend calls `createUserPinWithWallets` with `userToken` and gets a `challengeId`. Error 155106 means the user already has wallets -- load them with `listWallets` instead.
+4. `handleCreateWallet` -- `sdk.execute(challengeId)`; the user approves and Circle creates the wallet.
 
 ## Prerequisites
 
-1. **Google Cloud Console**: Create OAuth 2.0 credentials with authorized redirect URI
-2. **Circle Developer Console**:
-   - Get API key from Project Settings
-   - Configure Google Client ID in Wallets -> User Controlled -> Configurator -> Authentication Methods -> Social Logins
-   - Copy the App ID from the configurator
+1. **Google Cloud Console**: Create OAuth 2.0 credentials with an authorized redirect URI.
+2. **Circle Developer Console**: Get the API key from Project Settings. Configure the Google Client ID in Wallets -> User Controlled -> Configurator -> Authentication Methods -> Social Logins, then copy the App ID.
 
 ## Backend SDK Methods
 
 ### Step 1: Create device token
-
-Call this before initiating OAuth on the frontend.
 
 ```ts
 const response = await circleClient.createDeviceTokenForSocialLogin({
@@ -36,8 +28,6 @@ const response = await circleClient.createDeviceTokenForSocialLogin({
 ```
 
 ### Step 2: Initialize user and create wallet
-
-Returns a `challengeId` if the user needs to create a wallet. Error code 155106 means user already exists -- fetch wallets instead.
 
 ```ts
 const response = await circleClient.createUserPinWithWallets({
@@ -67,15 +57,7 @@ const response = await circleClient.getWalletTokenBalance({
 
 ## Frontend Component
 
-The SDK must be initialized with a login callback to handle the OAuth redirect response.
-
-IMPORTANT: Social login uses OAuth redirects. Use cookies (e.g., `react-cookie`) instead of React state to persist `deviceToken` and `deviceEncryptionKey` across page reloads.
-
-The frontend implements four button handlers mapping to the User Flow steps:
-1. `handleCreateDeviceToken` -- Create device token
-2. `handleLoginWithGoogle` -- Login with Google
-3. `handleInitializeUser` -- Initialize user (get challenge)
-4. `handleCreateWallet` -- Create wallet (execute challenge)
+Initialize the SDK with a login callback to receive the OAuth redirect result. Persist `deviceToken` and `deviceEncryptionKey` in cookies (e.g., `react-cookie`), not React state -- the OAuth redirect reloads the page.
 
 ```tsx
 import { useState, useEffect, useRef } from "react";
@@ -202,7 +184,7 @@ export default function SocialLoginWallet({
     const data = await response.json();
 
     if (data.code === 155106) {
-      // User already has wallets -- load them via listUserWallets
+      // User already has wallets -- load them via listWallets
       return;
     }
 
@@ -222,7 +204,7 @@ export default function SocialLoginWallet({
         return;
       }
       setChallengeId(null);
-      // Wait for Circle to index, then call listUserWallets to fetch the new wallet
+      // Wait for Circle to index, then call listWallets to fetch the new wallet
     });
   };
 
@@ -241,7 +223,7 @@ export default function SocialLoginWallet({
 
 ## Supported Social Providers
 
-The same pattern works for other providers. Configure when setting up the SDK:
+Provider configs passed when setting up the SDK:
 
 ```typescript
 // Google
@@ -250,17 +232,11 @@ google: { clientId: "...", redirectUri: "..." }
 // Facebook
 facebook: { appId: "...", redirectUri: "..." }
 
-// Apple
-apple: { clientId: "...", redirectUri: "..." }
+// Apple (Firebase config -- the SDK uses Firebase Auth for Apple sign-in)
+apple: { apiKey: "...", authDomain: "...", projectId: "...", appId: "..." }
 ```
 
-## Error Handling
-
-| Error Code | Meaning | Action |
-| --- | --- | --- |
-| 155106 | User already initialized | Fetch existing wallets instead of creating |
-| 155104 | Invalid user token | Re-authenticate user |
-| 155101 | Invalid device token | Regenerate device token |
+Error codes and recovery actions: see Error Handling in `SKILL.md`.
 
 ## Reference Links
 

@@ -1,12 +1,7 @@
 # Direct Cross-Chain Swap
 
-App Kit and standalone Swap Kit support cross-chain swaps directly. Set
-`to.chain` and `to.recipientAddress` on one `swap()` call. Do not manually
-compose swap + CCTP bridge + swap for a route supported by Swap Kit.
-
-Cross-chain swaps are permissionless: omit `kitKey` in browser and server
-examples. A server may optionally authenticate with a kit key, but the key must
-never reach client code.
+Set `to.chain` and `to.recipientAddress` on one `swap()` call, then track the
+destination leg with `waitForSwap()`. Examples run keyless.
 
 ## EVM browser example
 
@@ -16,7 +11,7 @@ import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
 import { useState } from "react";
 import type { EIP1193Provider } from "viem";
 import { mainnet } from "viem/chains";
-import { useAccount, useChainId, useSwitchChain } from "wagmi";
+import { useConnection, useChainId, useSwitchChain } from "wagmi";
 
 const kit = new AppKit();
 
@@ -37,7 +32,7 @@ type ReviewedCrossChainSwap = {
 };
 
 export function CrossChainSwap() {
-  const { address, connector } = useAccount();
+  const { address, connector } = useConnection();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const [reviewed, setReviewed] =
@@ -102,13 +97,12 @@ export function CrossChainSwap() {
 ```
 
 Display the reviewed estimate, chains, tokens, amount, and recipient before
-rendering the **Swap** button. The user's click on that button is the explicit
-confirmation; do not add a second prompt or synthetic confirmation object.
-Keep the reviewed request in state so the executed parameters cannot drift from
-the displayed quote.
+rendering the **Swap** button; the user's click is the confirmation. Keep the
+reviewed request in state so the executed parameters cannot drift from the
+displayed quote.
 
-For standalone Swap Kit, initialize `new SwapKit()`, call `kit.estimate()`, and
-use the same `swap()` and `waitForSwap()` parameter shapes.
+Standalone Swap Kit: initialize `new SwapKit()` and call `kit.estimate()`;
+`swap()` and `waitForSwap()` take the same params.
 
 ## EVM server example
 
@@ -179,9 +173,8 @@ export async function executeServerCrossChainSwap() {
 
 ## Persisting and resuming status
 
-Persist `result.txHash`, `result.chainIn`, and `result.chainOut` after the source
-transaction confirms. If the page or process restarts, resume status tracking
-without resubmitting the swap:
+Persist `result.txHash`, `result.chainIn`, and `result.chainOut` once the source
+transaction confirms. After a restart, resume tracking without resubmitting:
 
 ```ts
 const finalStatus = await kit.waitForSwap({
@@ -192,45 +185,34 @@ const finalStatus = await kit.waitForSwap({
 });
 ```
 
-`waitForSwap()` throws a retryable error when its wait budget expires; that does
-not mean the on-chain swap failed. Persist the identifiers and poll again. Never
-resubmit `swap()` solely because destination settlement is still pending.
+`waitForSwap()` throws a retryable error when its wait budget expires; the
+onchain swap has not necessarily failed. Persist the identifiers and poll again.
+Never resubmit `swap()` because destination settlement is still pending.
 
 ## Cross-chain rules
 
 - Require `to.recipientAddress`; validate it for the destination ecosystem.
-- Estimate before execution. If estimation explicitly reports no supported
-  route, do not call `swap()`. Do not interpret validation, transport, timeout,
-  or rate-limit failures as no-route results.
-- When no direct route exists, offer a separately estimated source swap to
-  USDC, USDC bridge using the `bridge-tokens` skill, and destination swap.
-  Display the full fallback plan and estimates in the UI, then start it only
-  from a user-triggered button. Never launch fallback transactions
-  automatically after the direct-route estimate fails.
-- For a server-side Solana fallback leg, read `adapter-solana.md` and import
-  `createSolanaKitAdapterFromPrivateKey` from
-  `@circle-fin/adapter-solana-kit`. That package does not export
-  `createSolanaAdapter` or `createSolanaAdapterFromPrivateKey`.
 - Treat a returned `PENDING` status as in-flight, not failed.
 - Use `waitForSwap({ result })` for normal tracking or `getSwapStatus()` for a
   single status snapshot.
-- Keep the source transaction hash and both chain identifiers for recovery.
-- Apply custom fees on the source-chain input token for cross-chain swaps; the
-  fee recipient must be valid on the source chain.
+- Apply custom fees on the source-chain input token; the fee recipient must be
+  valid on the source chain.
+- For a server-side Solana fallback leg, read `adapter-solana.md` and import
+  `createSolanaKitAdapterFromPrivateKey` from `@circle-fin/adapter-solana-kit`.
+  That package does not export `createSolanaAdapter` or
+  `createSolanaAdapterFromPrivateKey`.
 
 ## Multi-leg fallback when no direct route exists
 
 Try the direct route first. Only a thrown `KitError` with
-`name === "INPUT_UNSUPPORTED_ROUTE"` means no direct route exists — a transport,
-validation, timeout, or rate-limit failure does not. When it is genuinely
-unsupported, decompose into three separately estimated legs: source swap to
-USDC, USDC bridge, and destination swap. Estimate all three, present the plan,
-and export the executor without auto-invoking it. Each leg returns a result you
-persist so a failure resumes from the failed leg instead of re-running earlier
-legs.
+`name === "INPUT_UNSUPPORTED_ROUTE"` means no direct route exists. Then estimate
+three legs (source swap to USDC, USDC bridge, destination swap), present the
+plan, and export the executor without auto-invoking it. Persist each leg's
+result so a failure resumes from the failed leg instead of re-running earlier
+ones.
 
 ```ts
-import { AppKit, isKitError, type BridgeResult } from "@circle-fin/app-kit";
+import { AppKit, isKitError, isRetryableError, type BridgeResult } from "@circle-fin/app-kit";
 import { createViemAdapterFromPrivateKey } from "@circle-fin/adapter-viem-v2";
 
 const kit = new AppKit();
@@ -242,7 +224,6 @@ const recipientAddress = process.env.RECIPIENT_ADDRESS as `0x${string}`;
 const sourceLeg = { adapter, chain: "Ethereum" } as const;
 const destinationLeg = { adapter, chain: "Base" } as const;
 
-// Direct estimate first; only INPUT_UNSUPPORTED_ROUTE is a true no-route.
 export async function estimateDirectOrFallback() {
   try {
     return {
@@ -281,6 +262,8 @@ export async function estimateDirectOrFallback() {
 
 // Call this only from a user-triggered action, never automatically after the
 // estimate above. `saved` lets a retry skip legs that already completed.
+// Returns { sourceSwap, pending } | { sourceSwap, error } | { sourceSwap, status } | { sourceSwap, bridge }
+// (check bridge.state) | { sourceSwap, bridge, destinationSwap }; persist sourceSwap.
 export async function executeFallback(saved: {
   sourceSwap?: Awaited<ReturnType<typeof kit.swap>>;
   bridge?: BridgeResult;
@@ -294,7 +277,29 @@ export async function executeFallback(saved: {
       amountIn: "1.00",
     }));
 
-  const usdcAmount = sourceSwap.amountOut ?? sourceSwap.amountIn;
+  // amountIn is WETH, never a USDC amount. Without amountOut, wait for the
+  // submitted source swap and read the USDC it actually delivered.
+  let usdcAmount = sourceSwap.amountOut;
+  if (!usdcAmount) {
+    let status;
+    try {
+      status = await kit.waitForSwap({ result: sourceSwap });
+    } catch (error) {
+      // The swap is already submitted: return it so a retry never resubmits.
+      if (isRetryableError(error)) {
+        return { sourceSwap, pending: "source-swap-output" as const }; // timeout or transient poll failure
+      }
+      return { sourceSwap, error }; // auth/validation: fix, then resume with { sourceSwap }
+    }
+    if (status.progress.status !== "DONE") {
+      return { sourceSwap, status }; // FAILED or NOT_FOUND (not proof of failure): reconcile, never resubmit
+    }
+    usdcAmount = status.destination?.amount;
+  }
+  if (!usdcAmount) {
+    // Persist sourceSwap and call executeFallback({ sourceSwap }) again later.
+    return { sourceSwap, pending: "source-swap-output" as const };
+  }
 
   const bridge =
     saved.bridge ??
@@ -302,6 +307,7 @@ export async function executeFallback(saved: {
       from: sourceLeg,
       to: destinationLeg,
       amount: usdcAmount,
+      config: { transferSpeed: "SLOW" }, // no CCTP fee, so exactly usdcAmount arrives for the next swap
     }));
 
   if (bridge.state === "error") {

@@ -8,7 +8,8 @@ npm install @circle-fin/app-kit@latest     # or @circle-fin/onramp-kit@latest
 
 ## When to use which environment
 
-- **Sandbox** — every non-production context: local development, automated tests, CI, internal demos, and QA. No real funds move. Scaffold new integrations here by default and only promote to production after the full flow (session → widget → deposit settled onchain) works in sandbox. The production widget's CSP blocks `localhost`, so a production widget won't load from a local dev server.
+- **Sandbox** — every non-production context: local development, automated tests, CI, internal demos, and QA. No real funds move. Scaffold new integrations here by default; promote to production only after the full flow (session → widget → test deposit) works in sandbox. The production widget's CSP blocks `localhost`, so a production widget won't load from a local dev server.
+  - Sandbox emits `DEPOSIT_SUBMITTED` (`settlementExpected: false`) and never `DEPOSIT_SETTLED`. Confirm a test deposit by checking the destination wallet's balance on a block explorer; sandbox bank-transfer test funds land only on Ethereum.
 - **Production** — only the live app, where real users pay real money and real crypto settles into real wallets. Requires a mainnet API key.
 
 Switch environments by changing **environment variables only** — never by editing source. The API key, `baseUrl`, and `widgetBaseUrl` must all belong to the same environment.
@@ -24,7 +25,7 @@ Switch environments by changing **environment variables only** — never by edit
 
 Notes:
 
-- **API keys are environment-bound.** Use a testnet API key with sandbox and a mainnet API key with production. A testnet key won't work against production and a mainnet key won't work against sandbox. Create both on the [Circle Console → App Kits → Onramp Kit](https://console.circle.com/app-kits/onramp) page, using the environment toggle at the top left: **Testnet** for the testnet key, **Mainnet** for the mainnet key. Generate the mainnet key when you're ready for production; KYB (production only) is completed on the same page in Mainnet.
+- **API keys are environment-bound.** Use a testnet API key with sandbox and a mainnet API key with production. A testnet key won't work against production and a mainnet key won't work against sandbox. Create both on the [Circle Console → App Kits → Onramp Kit](https://console.circle.com/app-kits/onramp) page (a standard key from the API Keys page also works), using the environment toggle at the top left: **Testnet** for the testnet key, **Mainnet** for the mainnet key. Generate the mainnet key when you're ready for production; KYB (production only) is completed on the same page in Mainnet.
 - **Widget origin must be identical on server and client.** Otherwise `mountIframe`/`openWindow` throw `INPUT_WIDGET_URL_ORIGIN_MISMATCH` (code 1910).
 - The widget origin is safe to expose to the browser, so it carries a `NEXT_PUBLIC_` (or framework-equivalent) prefix. The API key is the only real secret and never gets a public prefix. `referrerDomain` isn't secret but MUST stay server-side config so clients can't influence it.
 - **`referrerDomain`** is a bare hostname (no scheme, port, path, or wildcard). In production it must match a KYB `web_url` entry, or debit card / Apple Pay / Google Pay fail with `403`. Bank transfer works without it.
@@ -59,7 +60,7 @@ If your host app sends a CSP, allow the widget and API origins for the environme
 
 | Symptom | Cause / fix |
 | --- | --- |
-| `Cannot find module '@circle-fin/app-kit/server'` (or `onramp-kit/server`) | Old SDK version. Run `npm install @circle-fin/app-kit@latest` (or `@circle-fin/onramp-kit@latest`). |
+| `Cannot find module '@circle-fin/app-kit/server'` | App Kit older than `1.15.0` (first release with `/server`): run `npm install @circle-fin/app-kit@latest`. Every Onramp Kit release ships `/server`; for `@circle-fin/onramp-kit/server`, check the import path and that the package is installed. |
 | `INPUT_INVALID_API_KEY` (code 1907) | API key missing, malformed, or for the wrong environment. Use the key exactly as issued: a testnet API key with sandbox `baseUrl`, a mainnet API key with production. |
 | `INPUT_WIDGET_URL_ORIGIN_MISMATCH` (code 1910) | Server and client `widgetBaseUrl` differ. Point both at the same environment. |
 | `SERVICE_SESSION_ENDPOINT_REJECTED` (code 8923) from `fetchSession` | Your session route returned non-2xx — check the `authorize` callback, auth cookies, and the request body. |

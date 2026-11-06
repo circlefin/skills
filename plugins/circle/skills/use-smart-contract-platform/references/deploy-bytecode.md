@@ -1,12 +1,8 @@
 # Deploy Smart Contract with Bytecode
 
-Use these TypeScript snippets to deploy a contract from compiled ABI + bytecode.
-
 ## Compile your Solidity contract
 
-Compile in Remix (or your own build tool), then copy:
-- ABI JSON
-- Raw bytecode (prefix with `0x` before deployment)
+Compile in Remix or your own build tool, then copy the ABI JSON and the raw bytecode (prefix it with `0x`).
 
 ## Deploy contract from ABI + bytecode
 
@@ -45,7 +41,7 @@ const contractRes = await scpClient.getContract({ id: contractId! });
 console.log(contractRes.data?.contract);
 ```
 
-Deployment is complete when `deploymentStatus` is `COMPLETE`.
+Poll until `contract.status` is `COMPLETE` or `FAILED` (see Deployment Status in `SKILL.md`).
 
 ## Reference Links
 

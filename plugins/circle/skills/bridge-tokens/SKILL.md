@@ -8,13 +8,16 @@ requirements:
 
 ## Overview
 
-This skill bridges tokens across chains with Circle's App Kit or Bridge Kit. **USDC** moves over Crosschain Transfer Protocol (CCTP) -- burn on the source chain, mint on the destination. **CCTPx tokens** use a registry alias (such as wETH, cirBTC, or EURC) or a registry-listed token ID. Both run through the **same `kit.bridge()` call** -- pass the alias or token ID directly as `token` and the SDK routes it automatically; there is no protocol to choose. App Kit (`@circle-fin/app-kit`) is Circle's all-inclusive SDK covering bridge, swap, and send in one package; standalone Bridge Kit (`@circle-fin/bridge-kit`) ships the same bridge API in a lighter package. **Recommend App Kit** unless the user wants bridge-only functionality. **Bridge operations need no kit key.**
+Bridge tokens across chains with Circle's App Kit or Bridge Kit. **USDC** moves over Crosschain Transfer Protocol (CCTP) -- burn on the source chain, mint on the destination. **CCTPx tokens** use a registry alias (such as wETH, cirBTC, or EURC) or a registry-listed token ID. Both go through the **same `kit.bridge()` call**: pass the alias or token ID directly as `token` (not wrapped in a provider-selector object) and the SDK routes it; there is no protocol to choose. App Kit (`@circle-fin/app-kit`) is Circle's all-inclusive SDK covering bridge, swap, and send; standalone Bridge Kit (`@circle-fin/bridge-kit`) ships the same bridge API in a lighter package. **Recommend App Kit** unless the user wants bridge-only functionality. **Bridge operations need no kit key.**
 
-Both SDKs run in browser and server applications. Use browser wallet provider adapters in client code and keep private keys plus Circle Wallets credentials on the server. App Kit `>=1.11.0` and Bridge Kit `>=1.12.2` bundle for browsers without consumer-provided Node or `Buffer` polyfills. CCTPx tokens require App Kit or Bridge Kit `>=1.15.0`; browser apps bridging CCTPx tokens need App Kit `>=1.15.2` or Bridge Kit `>=1.15.1`.
+Both SDKs run in browser and server applications. Version gates:
+
+- Browser-safe (Node-only request headers omitted; no consumer-provided Node or `Buffer` polyfills, Solana included): App Kit `>=1.11.0`, Bridge Kit `>=1.12.2`. Upgrade stale packages instead of adding shims.
+- CCTPx tokens: App Kit or Bridge Kit `>=1.15.0`; in a browser, App Kit `>=1.15.2` or Bridge Kit `>=1.15.1`.
 
 ## Supported tokens & routes
 
-Pass a registry alias or token ID directly as `token` in `kit.bridge()` and `kit.estimateBridge()` (App Kit) / `kit.estimate()` (Bridge Kit); do not wrap it in a provider-selector object. The SDK routes it to the correct protocol automatically. Only USDC supports Solana; every CCTPx route is EVM-to-EVM. Aliases are case-sensitive (`"wETH"`, not `"WETH"`), and a token ID is a bytes32 hex string (`0x` followed by 64 hex characters).
+Pass the same `token` to `kit.bridge()` and to `kit.estimateBridge()` (App Kit) / `kit.estimate()` (Bridge Kit). Only USDC supports Solana; every CCTPx route is EVM-to-EVM. Aliases are case-sensitive (`"wETH"`, not `"WETH"`), and a token ID is a bytes32 hex string (`0x` followed by 64 hex characters).
 
 | Token selector | Supported chains |
 |---|---|
@@ -24,7 +27,7 @@ Pass a registry alias or token ID directly as `token` in `kit.bridge()` and `kit
 | `cirBTC` | Ethereum <-> Arc on mainnet, plus eligible testnet routes |
 | Registry-listed token ID | Any EVM route where the CCTPx registry lists that token on both endpoint domains |
 
-CCTPx-enabled EVM chains are Ethereum, Arc, Base, Arbitrum, Optimism, Polygon, and Avalanche. A chain being CCTPx-enabled does not make every token routable to every other chain. The SDK fetches the CCTPx token registry from Circle at runtime and throws `INPUT_UNSUPPORTED_ROUTE` when the selected token is not listed on both endpoints -- do not hardcode route lists.
+CCTPx-enabled EVM chains are Ethereum, Arc, Base, Arbitrum, Optimism, Polygon, and Avalanche, but not every token routes between every pair. The SDK fetches the CCTPx token registry from Circle at runtime and throws `INPUT_UNSUPPORTED_ROUTE` when the token is not listed on both endpoints -- do not hardcode route lists.
 
 ## Prerequisites / Setup
 
@@ -37,7 +40,7 @@ App Kit with Viem adapter (recommended):
 ```bash
 npm install @circle-fin/app-kit @circle-fin/adapter-viem-v2
 # Optional: Solana support
-npm install @circle-fin/adapter-solana-kit
+npm install @circle-fin/adapter-solana-kit @solana/kit @solana/web3.js
 # Optional: Circle Wallets (developer-controlled) support
 npm install @circle-fin/adapter-circle-wallets
 ```
@@ -53,14 +56,14 @@ npm install @circle-fin/bridge-kit @circle-fin/adapter-viem-v2
 ```
 PRIVATE_KEY=              # EVM wallet private key (hex, 0x-prefixed)
 EVM_PRIVATE_KEY=          # EVM private key (when also using Solana)
-SOLANA_PRIVATE_KEY=       # Solana wallet private key (base58)
+SOLANA_PRIVATE_KEY=       # Solana wallet private key (Base58, Base64, or JSON byte array)
 CIRCLE_API_KEY=           # Circle API key (for Circle Wallets adapter)
 CIRCLE_ENTITY_SECRET=     # Entity secret (for Circle Wallets adapter)
 EVM_WALLET_ADDRESS=       # Developer-controlled EVM wallet address
 SOLANA_WALLET_ADDRESS=    # Developer-controlled Solana wallet address
 ```
 
-No `KIT_KEY` is needed for bridge operations. Browser-wallet integrations need none of the variables above. Never expose a private key, Circle API key, entity secret, or optional App Kit credential to client code.
+Browser-wallet integrations need none of these.
 
 ### SDK Initialization
 
@@ -82,7 +85,7 @@ const kit = new BridgeKit();
 
 ## Decision Guide
 
-ALWAYS walk through these questions with the user before writing any code. Do not skip steps or assume answers.
+Ask each applicable question before writing code; do not assume answers.
 
 ### SDK Choice
 
@@ -96,7 +99,7 @@ ALWAYS walk through these questions with the user before writing any code. Do no
 - Managing your own private key (self-custodied, stored in env var or secrets manager) -> Question 3
 - Using Circle developer-controlled wallets (Circle manages key storage and signing) -> Use Circle Wallets adapter. READ `references/adapter-circle-wallets.md`
 - Using an EVM browser wallet (wagmi, ConnectKit, RainbowKit, or any EIP-1193 provider) -> Use the Viem provider adapter. READ `references/adapter-wagmi.md`
-- Using a Solana browser wallet (Wallet Standard provider such as Phantom, Solflare, or Backpack) -> Use the Solana provider adapter. READ `references/adapter-browser-wallet.md`
+- Using an injected Solana browser wallet provider -> Use the Solana provider adapter. READ `references/adapter-browser-wallet.md`
 
 **Question 3 -- Which chains are you bridging between?**
 - EVM-to-EVM or EVM-to-Solana -> Use Viem and/or Solana Kit adapters. READ `references/adapter-private-key.md`
@@ -109,22 +112,21 @@ ALWAYS walk through these questions with the user before writing any code. Do no
 
 ## Workflow
 
-1. **Walk the Decision Guide** -- settle the SDK (App Kit vs Bridge Kit) and the wallet/adapter with the user before writing any code.
-2. **Install and initialize** -- install the chosen kit plus adapter, then construct the kit and adapter (see Prerequisites / Setup).
-3. **Confirm the transfer** -- token, amount, source and destination chains, and recipient. Validate chain names and addresses. Default to testnet; require explicit confirmation before mainnet.
-4. **For CCTPx tokens, quote first** -- confirm that the registry supports the selected EVM route, settle `FAST` vs `SLOW` with the user, call `kit.estimateBridge()` (App Kit) or `kit.estimate()` (Bridge Kit), and surface the quoted fee before executing. Quote reuse is best-effort: surface a `QUOTE_NOT_REUSED` warning on the result.
-5. **Execute the bridge** -- call `kit.bridge({ token, from, to, amount, ... })`, only from an explicit user action (never auto-invoke). READ the adapter reference for the exact code.
-6. **Track and recover** -- inspect `result.state` / `result.steps`, subscribe with `kit.on()`, and on a soft failure resume with `kit.retryBridge(result, ...)` (App Kit) or `kit.retry(result, ...)` (Bridge Kit) -- never re-run `kit.bridge()` from scratch.
+1. **Walk the Decision Guide** -- settle the SDK and the wallet/adapter.
+2. **Install and initialize** the chosen kit and adapter (see Prerequisites / Setup).
+3. **Confirm the transfer** -- token, amount, source and destination chains, and recipient. Validate chain names and addresses.
+4. **For CCTPx tokens, quote first** -- confirm the registry supports the EVM route, settle `FAST` vs `SLOW` with the user, call `kit.estimateBridge()` (App Kit) or `kit.estimate()` (Bridge Kit), and surface the quoted fee before executing. Quote reuse is best-effort: surface a `QUOTE_NOT_REUSED` warning on the result.
+5. **Execute** `kit.bridge({ token, from, to, amount, ... })` only from an explicit user action. READ the adapter reference for the exact code.
+6. **Track and recover** -- inspect `result.state` / `result.steps`, subscribe with `kit.on()`, and resume a soft failure with `kit.retryBridge(result, ...)` (App Kit) or `kit.retry(result, ...)` (Bridge Kit).
 
 ## Core Concepts
 
 - **CCTP steps (USDC)**: Every USDC bridge transfer executes four sequential steps -- `approve` (ERC-20 allowance), `burn` (destroy USDC on source chain), `fetchAttestation` (wait for Circle to sign the burn proof), and `mint` (create USDC on destination chain).
-- **CCTPx transfers**: the same `kit.bridge({ token, from, to, amount })` call; pass a registry alias or token ID directly as `token`. The steps are `approve -> transfer -> fetchAttestation -> forward`, with an `approveFee` step before `transfer` only when the fee is an ERC-20 (Circle's relayer mints on the destination automatically -- no destination gas or `useForwarder` toggle needed). Every CCTPx transfer pays a relayer fee in the source chain's native token; `FAST` (default) adds a pre-finality fee, while `SLOW` waits for source-chain finality and skips it. Call `kit.estimateBridge()` (App Kit) or `kit.estimate()` (Bridge Kit) first and surface the quoted fee to the user before bridging; the bridge call stays behind the user's explicit confirm action. Check `result.state === "success"` for completion. CCTPx routes reject custom fees, `feePayment: "destination"`, and `useForwarder: false`.
-- **Adapters**: Both App Kit and Bridge Kit use adapter objects to abstract wallet/signer differences. Each ecosystem has its own adapter factory (`createViemAdapterFromPrivateKey`, `createSolanaKitAdapterFromPrivateKey`, `createCircleWalletsAdapter`). The same adapter instance can serve as both source and destination when bridging within the same ecosystem.
-- **Forwarding Service**: When `useForwarder: true` is set on the destination, Circle's infrastructure handles attestation fetching and mint submission. This removes the need for a destination wallet or polling loop. There is a per-transfer fee that varies by route (see below).
+- **CCTPx steps**: `approve -> transfer -> fetchAttestation -> forward`, with an `approveFee` step before `transfer` only when the fee is an ERC-20. Circle's relayer mints on the destination automatically -- no destination gas or `useForwarder` toggle needed. Every CCTPx transfer pays a relayer fee in the source chain's native token; `FAST` (default) adds a pre-finality fee, while `SLOW` waits for source-chain finality and skips it. Completion is `result.state === "success"`. CCTPx routes reject custom fees, `feePayment: "destination"`, and `useForwarder: false`.
+- **Adapters** abstract wallet/signer differences, one factory per ecosystem (`createViemAdapterFromPrivateKey`, `createSolanaKitAdapterFromPrivateKey`, `createCircleWalletsAdapter`). One adapter instance can be both source and destination within the same ecosystem.
+- **Forwarding Service**: with `useForwarder: true` on the destination, Circle fetches the attestation and submits the mint, so no destination wallet or polling loop is needed. It charges a per-transfer fee that varies by route.
 - **Transfer speed**: CCTP fast mode (default) completes in ~8-20 seconds. Standard mode takes ~15-19 minutes.
-- **Chain identifiers**: Both SDKs use string chain names (e.g., `"Arc"`, `"Arc_Testnet"`, `"Base_Sepolia"`, `"Solana_Devnet"`), not numeric chain IDs, in the `kit.bridge()` call.
-- **Browser-safe packages**: Current App Kit, Bridge Kit, and Solana adapters ship the required browser compatibility internally. Browser requests omit Node-only headers, and Solana operations need no consumer `Buffer` shim. Upgrade stale packages instead of adding polyfills.
+- **Chain identifiers** are string chain names (e.g., `"Arc"`, `"Arc_Testnet"`, `"Base_Sepolia"`, `"Solana_Devnet"`), not numeric chain IDs.
 
 ## Implementation Patterns
 
@@ -133,7 +135,7 @@ READ the corresponding reference based on the user's request:
 - `references/adapter-private-key.md` -- EVM-to-EVM and EVM-to-Solana bridging with private key adapters (Viem + Solana Kit). Includes App Kit and Bridge Kit examples.
 - `references/adapter-circle-wallets.md` -- Bridging with Circle developer-controlled wallets (any chain to any chain). Includes App Kit and Bridge Kit examples.
 - `references/adapter-wagmi.md` -- Browser wallet integration using wagmi (ConnectKit, RainbowKit, etc.). Includes App Kit and Bridge Kit examples.
-- `references/adapter-browser-wallet.md` -- Solana browser wallet integration using a Wallet Standard provider, with no manual polyfills
+- `references/adapter-browser-wallet.md` -- Solana browser wallet integration using an injected wallet provider, with no manual polyfills
 - `references/non-usdc-cctpx.md` -- bridging CCTPx registry aliases and token IDs on supported EVM routes: route validation, quote-then-confirm flow, and FAST/SLOW transfer speed
 
 ### Sample Response from kit.bridge()
@@ -197,13 +199,12 @@ READ the corresponding reference based on the user's request:
 
 ### Forwarding Service, events, and recovery
 
-When the task uses `useForwarder: true` (no destination wallet / no attestation polling), subscribes to bridge events via `kit.on()`, or needs to analyze and resume a failed transfer with `kit.retryBridge()` (App Kit) / `kit.retry()` (Bridge Kit), READ `references/forwarding-events-recovery.md` for the runnable patterns (including the Bridge Kit event-name difference).
+When the task uses `useForwarder: true`, subscribes to events with `kit.on()`, or analyzes and resumes a failed transfer, READ `references/forwarding-events-recovery.md` (including the Bridge Kit event-name difference).
 
 ## Error Handling & Recovery
 
-Both App Kit and Bridge Kit have two error categories:
-- **Hard errors** throw exceptions (validation, config, auth) -- catch in try/catch.
-- **Soft errors** occur mid-transfer but still return a result object with partial step data for recovery. NEVER re-run `kit.bridge()` from scratch after a soft error — `kit.retryBridge(result, ...)` (App Kit) or `kit.retry(result, ...)` (Bridge Kit) resumes from the failed step and prevents double-spending; the full pattern is in `references/forwarding-events-recovery.md`.
+- **Hard errors** throw (validation, config, auth) -- catch in try/catch.
+- **Soft errors** happen mid-transfer and still return a result with partial step data. NEVER re-run `kit.bridge()` from scratch after one -- `kit.retryBridge(result, ...)` (App Kit) or `kit.retry(result, ...)` (Bridge Kit) resumes from the failed step and prevents double-spending.
 
 ## Rules
 
@@ -222,15 +223,16 @@ Both App Kit and Bridge Kit have two error categories:
 
 ### Best Practices
 
-- ALWAYS walk the user through the Decision Guide questions before writing any code. Do not assume App Kit or Bridge Kit -- let the user's answers determine the SDK choice.
+- ALWAYS walk the user through the Decision Guide before writing any code. Do not assume App Kit or Bridge Kit -- the user's answers decide.
 - ALWAYS read the correct reference files before implementing.
 - For browser apps, require browser-safe package versions, use provider-based adapters, and do not add Node/`Buffer` polyfills.
-- ALWAYS switch the wallet to the source chain before calling `kit.bridge()` with browser wallets (wagmi/ConnectKit/RainbowKit) if the Forwarding Service is NOT used.
+- ALWAYS switch the wallet to the source chain before calling `kit.bridge()` with browser wallets (wagmi/ConnectKit/RainbowKit) if the Forwarding Service is NOT used, and wrap the provider with `withAddChainFallback` (see `references/adapter-wagmi.md`): the adapter switches to the destination chain for the mint, and a wallet without that chain fails after the burn.
+- Estimate fees are human-readable decimal strings, not base units: `gasFees[].fees.fee` is in the chain's native token (the `EstimatedGas` type doc wrongly says wei) and `fees[].amount` is in `fees[].token`. Show them as-is; NEVER call `BigInt()` on them or treat them as wei. `gasFees[].fees` and `fees[].amount` are `null` when that part of the estimate failed.
 - ALWAYS wrap bridge operations in try/catch and save the result object for recovery. Check `result.steps` before retrying to see which steps completed.
 - ALWAYS use exponential backoff for retry logic in production.
-- ALWAYS use string chain names (e.g., `"Arc"`, `"Arc_Testnet"`, `"Base_Sepolia"`), not numeric chain IDs.
-- ALWAYS default to testnet. Require explicit user confirmation before targeting mainnet.
-- ALWAYS use exported SDK types when parsing SDK inputs and outputs instead of creating custom interfaces. This minimizes type errors.
+- ALWAYS default to testnet.
+- For `Arc_Testnet`, use App Kit `>=1.18.0` (or Bridge Kit `>=1.16.0`) and `@circle-fin/adapter-viem-v2` `>=1.19.2` (`adapter-ethers-v6` `>=1.12.3`, `adapter-circle-wallets` `>=1.8.3`). Older releases default Arc Testnet to a retired RPC and fail with `HTTP request failed`.
+- ALWAYS use exported SDK types for SDK inputs and outputs instead of custom interfaces.
 
 ## Reference Links
 
@@ -243,7 +245,7 @@ Both App Kit and Bridge Kit have two error categories:
 
 Trigger the `swap-tokens` skill instead when:
 - You need to swap tokens (e.g., USDT to USDC) on the same chain.
-- You need to move a token across chains that this skill does not bridge directly. This skill bridges USDC across CCTP chains and CCTPx aliases or token IDs on their registry-supported EVM routes; `swap-tokens` can route other tokens or chains via a cross-chain swap.
+- You need to move a token or route this skill does not bridge (anything beyond USDC on CCTP chains and CCTPx tokens on registry-supported EVM routes); `swap-tokens` can route it via a cross-chain swap.
 
 Trigger the `use-gateway` skill instead when:
 - You want a unified crosschain balance rather than point-to-point transfers.

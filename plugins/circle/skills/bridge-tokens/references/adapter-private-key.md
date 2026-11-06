@@ -1,6 +1,6 @@
 # Private Key Adapter (Viem + Solana Kit)
 
-Reference implementation for bridging USDC using private key adapters -- covers EVM-to-EVM and EVM-to-Solana routes. Includes examples for both App Kit and standalone Bridge Kit.
+Bridge USDC with private-key adapters (EVM-to-EVM and EVM-to-Solana), using App Kit or standalone Bridge Kit. Each example exports `bridgeUSDC()`: call it only from the user's explicit confirm action, never at module startup.
 
 ## Setup
 
@@ -10,6 +10,9 @@ npm install @circle-fin/app-kit @circle-fin/adapter-viem-v2
 
 # Bridge Kit (standalone)
 npm install @circle-fin/bridge-kit @circle-fin/adapter-viem-v2
+
+# EVM to Solana: add the Solana Kit adapter
+npm install @circle-fin/adapter-solana-kit @solana/kit @solana/web3.js
 ```
 
 ## Environment Variables
@@ -17,7 +20,7 @@ npm install @circle-fin/bridge-kit @circle-fin/adapter-viem-v2
 ```
 PRIVATE_KEY=              # EVM wallet private key (hex, 0x-prefixed)
 EVM_PRIVATE_KEY=          # EVM private key (when also using Solana)
-SOLANA_PRIVATE_KEY=       # Solana wallet private key (base58)
+SOLANA_PRIVATE_KEY=       # Solana wallet private key (Base58, Base64, or JSON byte array)
 ```
 
 ## EVM to EVM
@@ -53,8 +56,6 @@ export const bridgeUSDC = async (): Promise<void> => {
     console.error("ERROR", err instanceof Error ? err.message : "Unknown error");
   }
 };
-
-// Call bridgeUSDC() only from the user's explicit confirm action -- never at module startup.
 ```
 
 ### Using Bridge Kit
@@ -88,8 +89,6 @@ export const bridgeUSDC = async (): Promise<void> => {
     console.error("ERROR", err instanceof Error ? err.message : "Unknown error");
   }
 };
-
-// Call bridgeUSDC() only from the user's explicit confirm action -- never at module startup.
 ```
 
 ## EVM to Solana
@@ -111,8 +110,8 @@ export const bridgeUSDC = async (): Promise<void> => {
   }
 
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -135,8 +134,6 @@ export const bridgeUSDC = async (): Promise<void> => {
     console.error("ERROR", err instanceof Error ? err.message : "Unknown error");
   }
 };
-
-// Call bridgeUSDC() only from the user's explicit confirm action -- never at module startup.
 ```
 
 ### Using Bridge Kit
@@ -156,8 +153,8 @@ export const bridgeUSDC = async (): Promise<void> => {
   }
 
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -180,6 +177,4 @@ export const bridgeUSDC = async (): Promise<void> => {
     console.error("ERROR", err instanceof Error ? err.message : "Unknown error");
   }
 };
-
-// Call bridgeUSDC() only from the user's explicit confirm action -- never at module startup.
 ```

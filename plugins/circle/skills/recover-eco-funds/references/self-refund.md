@@ -177,6 +177,6 @@ The verified recovery exposed two edge cases this procedure preserves:
 
 - Eco Portal architecture: https://docs.eco.com/routes/architecture/portal
 - Eco vault architecture: https://docs.eco.com/routes/architecture/vault
-- Eco intent status API: https://docs.eco.com/api-reference/quotes-v3/get-intent-status
+- Eco intent status (undocumented legacy endpoint): `POST https://quotes.eco.com/api/v3/intents/intentStatus`
 - Eco contract source: https://github.com/eco/eco-routes/blob/master/contracts/IntentSource.sol
 - Eco vault source: https://github.com/eco/eco-routes/blob/master/contracts/vault/Vault.sol

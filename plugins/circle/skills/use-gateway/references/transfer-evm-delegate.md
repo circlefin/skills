@@ -19,9 +19,9 @@ This script:
 
 ## Delegate requirement
 
-For SCA depositors, Gateway outbound transfers require a delegate EOA because the burn intent must be signed with an ECDSA-capable signer.
-Add the delegate on the source chain before using this pattern.
-In the burn intent, set `sourceDepositor` to the SCA address and `sourceSigner` to the delegate EOA address.
+Add the delegate on the source chain before using this pattern. In the burn intent, set `sourceDepositor` to the SCA address and `sourceSigner` to the delegate EOA address.
+
+An SCA that signs its own burn intents via ERC-1271 needs no delegate; see "SCA source depositors" in SKILL.md.
 
 ## Runnable example
 

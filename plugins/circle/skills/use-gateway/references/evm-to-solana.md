@@ -202,7 +202,7 @@ function randomHex32(): Hex {
 }
 
 function evmAddressToBytes32(address: Hex): Hex {
-  return pad(address.toLowerCase(), { size: 32 });
+  return pad(address.toLowerCase() as Hex, { size: 32 });
 }
 
 function solanaAddressToBytes32(address: string): Hex {
@@ -278,15 +278,7 @@ async function main() {
     domain: eip712Domain,
     types: eip712Types,
     primaryType: "BurnIntent",
-    message: {
-      ...burnIntent,
-      maxBlockHeight: burnIntent.maxBlockHeight.toString(),
-      maxFee: burnIntent.maxFee.toString(),
-      spec: {
-        ...burnIntent.spec,
-        value: burnIntent.spec.value.toString(),
-      },
-    },
+    message: burnIntent,
   });
 
   const transferResponse = await fetch(GATEWAY_API_URL, {

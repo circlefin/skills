@@ -31,7 +31,7 @@ import path from "path";
 import { privateKeyToAccount } from "viem/accounts";
 
 const privateKey = fs.readFileSync(
-  path.join(process.env.HOME, ".ethereum/keys/testnet.key"),
+  path.join(process.env.HOME!, ".ethereum/keys/testnet.key"),
   "utf-8"
 ).trim() as `0x${string}`;
 
@@ -55,11 +55,12 @@ import { privateKeyToAccount } from "viem/accounts";
 import { arcTestnet } from "viem/chains";
 
 const chain = arcTestnet;
+const rpcUrl = "https://rpc.testnet.arc.io"; // explicit: viem < 2.57.5 points arcTestnet at a retired host
 
 // For read operations only
 const publicClient = createPublicClient({
   chain,
-  transport: http(),
+  transport: http(rpcUrl),
 });
 
 // For write operations (requires private key)
@@ -67,7 +68,7 @@ const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`);
 const walletClient = createWalletClient({
   account,
   chain,
-  transport: http(),
+  transport: http(rpcUrl),
 });
 
 const USDC = "0x3600000000000000000000000000000000000000"; // Arc Testnet USDC address
@@ -309,18 +310,20 @@ if (currentAllowance < required) {
 ## 5. Verify Incoming Transfer (Read)
 
 ```ts
+const latest = await publicClient.getBlockNumber();
 const logs = await publicClient.getContractEvents({
   address: USDC,
   abi: erc20Abi,
   eventName: "Transfer",
   args: { to: "0xRecipientAddress" },
-  fromBlock: 1000000n,
-  toBlock: "latest",
+  fromBlock: latest - 9_999n,
+  toBlock: latest,
 });
 
 // Process and display the transfers
 for (const log of logs) {
   const { from, value } = log.args;
+  if (value === undefined) continue;
   const amount = formatUnits(value, 6);
   console.log(`Received ${amount} USDC from ${from}`);
   console.log(`  Block: ${log.blockNumber}`);
@@ -329,7 +332,9 @@ for (const log of logs) {
 }
 ```
 
-Narrow `fromBlock` to reduce RPC load. Check block explorers for recent block numbers.
+Arc's public RPC rejects `eth_getLogs` ranges over 10,000 blocks (error `-32012`); page older history in chunks of at most 9,999 blocks.
+
+**Arc:** a native-value USDC send (`sendTransaction({ value })`) emits no log from `0x3600…`, only a native system `Transfer` from `0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE` (18 decimals). To catch every incoming USDC movement on Arc, query that emitter for the same `Transfer` event and use `formatUnits(value, 18)`. That emitter also logs ERC-20 transfers, so never sum both streams. See [USDC system events](https://docs.arc.io/arc/references/usdc-system-events.md).
 
 ---
 

@@ -1,6 +1,6 @@
 # Solana Adapter
 
-Reference implementation for Solana deposit and spend using the `@circle-fin/adapter-solana` adapter. Includes examples for both App Kit and standalone Unified Balance Kit.
+Solana deposit and spend with the `@circle-fin/adapter-solana` private-key adapter, for App Kit and standalone Unified Balance Kit.
 
 ## Setup
 
@@ -15,7 +15,7 @@ npm install @circle-fin/unified-balance-kit @circle-fin/adapter-solana @solana/w
 ## Environment Variables
 
 ```
-SOLANA_PRIVATE_KEY=       # Solana wallet private key (base58)
+SOLANA_PRIVATE_KEY=       # Solana wallet private key (Base58, Base64, or JSON byte array)
 ```
 
 ## Deposit (Using App Kit)
@@ -29,8 +29,8 @@ const kit = new AppKit();
 
 const deposit = async (): Promise<void> => {
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -63,8 +63,8 @@ const kit = new UnifiedBalanceKit();
 
 const deposit = async (): Promise<void> => {
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -99,8 +99,8 @@ const kit = new AppKit();
 
 const spend = async (): Promise<void> => {
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -141,8 +141,8 @@ const kit = new UnifiedBalanceKit();
 
 const spend = async (): Promise<void> => {
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {

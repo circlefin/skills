@@ -6,11 +6,11 @@
 circle gateway deposit --amount <amount> --address <addr> --chain MATIC --method direct
 ```
 
-Supported chains for direct: Arc, BASE, MATIC, ETH, ARB, AVAX, OP, UNI. Direct on fast-finality chains (Arc, MATIC, AVAX) is fast — Arc settles sub-second, MATIC/AVAX ~8s. Direct on slow chains (BASE, ETH, ARB, OP, UNI) is 13–19 minutes — almost always the wrong choice over eco. On Arc, direct is the natural path when the USDC is already there (fast, USDC-native gas); eco is the BASE-source shortcut that also lands the balance on Arc.
+Supported chains and finality: Arc (sub-second); MATIC, AVAX (~8s); BASE, ARB, OP, UNI (13–19 minutes). ETH is listed in `--help`, but CLI 1.2.2 rejects it for direct deposit and agent withdraw.
 
 ## Withdrawing from Gateway
 
-`circle gateway withdraw` is **same-chain only** in v1 — it cannot do cross-chain withdrawals. To move USDC across chains, withdraw same-chain and then bridge with `circle bridge transfer` (the Circle CLI's built-in cross-chain transfer command).
+`circle gateway withdraw` is **same-chain only** in v1. To move USDC across chains, withdraw same-chain, then bridge with `circle bridge transfer`.
 
 ```bash
 circle gateway withdraw --amount <amount> --address <addr> --chain <CHAIN>

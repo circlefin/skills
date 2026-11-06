@@ -53,6 +53,36 @@ export function requireAddress(value, label) {
   return requireHex(value, 20, label);
 }
 
+const SHELL_UNSAFE = /[\s'"`$;|&()<>\\]/;
+
+export function requireRpcUrl(value, label) {
+  if (SHELL_UNSAFE.test(value) || !/^https?:\/\/[^/?#]+/.test(value)) {
+    throw new Error(`${label} must be an http(s) URL without whitespace, quotes, or shell metacharacters.`);
+  }
+  return value;
+}
+
+export function requireChainCode(value, label) {
+  if (!/^[A-Z0-9-]+$/.test(value)) {
+    throw new Error(`${label} must be a Circle CLI chain code such as BASE or ARB-SEPOLIA.`);
+  }
+  return value;
+}
+
+export function requireChainId(value, label) {
+  if (!/^[1-9][0-9]*$/.test(value)) {
+    throw new Error(`${label} must be a positive integer chain ID.`);
+  }
+  return BigInt(value);
+}
+
+export function requireSafePath(value, label) {
+  if (SHELL_UNSAFE.test(value)) {
+    throw new Error(`${label} must be a path without whitespace, quotes, or shell metacharacters.`);
+  }
+  return value;
+}
+
 export function json(value) {
   return JSON.stringify(
     sanitize(value),

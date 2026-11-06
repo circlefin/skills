@@ -8,9 +8,7 @@ requirements:
 
 ## Overview
 
-For an overview of the Circle CLI's **full** capability set, see the `use-circle-cli` master skill. This skill is the narrower spending-policy flow.
-
-Circle agent wallets support **spending policies** — per-wallet caps that the CLI enforces on every payment and transfer. There are three operations:
+Circle agent wallets support **spending policies**: per-wallet USDC caps that the CLI enforces on every payment and transfer. This skill is the spending-policy flow; for the CLI's full capability set, see the `use-circle-cli` master skill.
 
 | Operation | Command | OTP required? |
 | --- | --- | --- |
@@ -18,11 +16,9 @@ Circle agent wallets support **spending policies** — per-wallet caps that the 
 | **Set** custom limits | `circle wallet limit set ...` | **Yes — human OTP, run in user's own terminal** |
 | **Reset** to defaults | `circle wallet limit reset ...` | **Yes — human OTP, run in user's own terminal** |
 
-Spending policies are **mainnet-only** (testnet chains are rejected; see Troubleshooting / Rules).
-
 ## Prerequisites
 
-Two supporting commands set up the flow: a session check (`circle wallet status`) and a wallet-address lookup (`circle wallet list ... --output json`). READ `references/commands.md` for the exact commands.
+READ `references/commands.md` for the session check (`circle wallet status`) and wallet-address lookup (`circle wallet list ... --output json`).
 
 If `circle wallet status` errors with "Not logged in" or "Terms acceptance is required", hand off to the `use-agent-wallet` skill — it covers install, terms, login, and wallet creation.
 
@@ -32,19 +28,15 @@ If `circle wallet status` errors with "Not logged in" or "Terms acceptance is re
 circle wallet limit --address <addr> --chain ARC --output json
 ```
 
-Shows the current per-tx, daily, weekly, and monthly USDC caps (`null` for any unset tier). Safe to call freely — read-only, no money moves, no OTP.
+Returns `data.policies[]`; each transfer-limit entry carries `perTxLimit`, `dailyLimit`, `weeklyLimit`, and `monthlyLimit`. Unset tiers are omitted; an empty array means no policy is configured. Read-only — no money moves, no OTP — so call it freely.
 
 ## Setting or resetting limits (interactive terminal — handoff to user)
 
-`circle wallet limit set` and `circle wallet limit reset` are **interactive**. They send a 6-digit OTP to the user's email mid-execution and wait for the code at the CLI's stdin prompt.
-
-**OTPs are password-equivalent. The agent must NOT receive, store, or relay the OTP.** The agent's job here is to hand the user a verbatim command to run in their own terminal, then wait for them to report back.
+`circle wallet limit set` and `circle wallet limit reset` are **interactive**: mid-execution they email the user a 6-digit OTP and wait for it at the CLI's stdin prompt. OTPs are password-equivalent, so hand the user a verbatim command to run in their own terminal and wait for them to report back.
 
 ### 1. Confirm values with the user
 
-Limits must be **monotonic**: `per-tx ≤ daily ≤ weekly ≤ monthly`.
-
-A typical conservative configuration:
+`limit set` requires **all four** tiers (`--per-tx`, `--daily`, `--weekly`, `--monthly`), and they must be **monotonic**: `per-tx ≤ daily ≤ weekly ≤ monthly`. If the user names only some, propose values for the rest and confirm before handing over the command. A typical conservative configuration:
 
 | Tier | Suggested USDC value |
 | --- | --- |
@@ -53,7 +45,7 @@ A typical conservative configuration:
 | `--weekly` | `20` |
 | `--monthly` | `50` |
 
-Adjust based on the user's stated tolerance. Get explicit yes before generating the command.
+Adjust to the user's stated tolerance.
 
 ### 2. Hand the user the command
 
@@ -68,37 +60,39 @@ Tell the user:
 >   --per-tx 1 --daily 5 --weekly 20 --monthly 50
 > ```
 
-For reset, the verbatim command is:
+`limit set` only creates a **new** policy; it fails with `CONFLICT` if a custom policy already exists for that wallet, chain, and policy type. To change existing limits, hand the user `limit reset` first, then `limit set` again. `limit reset` deletes **every** custom policy for that wallet and chain (all limits and allow/block rules), so get the user's explicit approval and re-apply anything they want to keep.
+
+Reset command:
 
 ```bash
 circle wallet limit reset --address <addr> --chain ARC --yes
 ```
 
-Omit `--yes` if you want the user to see a confirmation prompt before the OTP is sent.
+Omit `--yes` to show the user a confirmation prompt before the OTP is sent.
 
-### 3. Verify after the user reports done
+### 3. Verify
 
-Run the read-only limit command to confirm the new caps, then surface them to the user. READ `references/commands.md` for the exact command.
+After the user reports done, re-run the view command above and show the user the new caps.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | User received multiple OTP emails | Command was re-run while a previous invocation was still waiting | Tell the user to use the **most recent** OTP only. Earlier ones are invalidated. |
-| OTP rejected with "prefix mismatch" | User entered an OTP from a previous request | Restart — each `set` / `reset` invocation has a fresh prefix. |
-| `Spending policies are mainnet-only` | Tried to set a policy on a testnet chain | Re-run with a mainnet `--chain` value (`BASE`, `MATIC`, etc.). |
-| `Limits must be monotonic` | per-tx > daily, daily > weekly, etc. | Re-check the values. `per-tx ≤ daily ≤ weekly ≤ monthly`. |
-| `Only agent wallets support spending policies` | Tried on a local (non-agent) wallet | Spending policies apply only to agent wallets created via `circle wallet create`. |
+| OTP rejected with "Security code mismatch" | User entered an OTP from a previous request | Restart — each `set` / `reset` invocation has a fresh prefix. |
+| `Policy limits are only available on mainnet chains` / `Policy writes are only available on mainnet chains` | Tried to view or set a policy on a testnet chain | Re-run with a mainnet `--chain` value (`BASE`, `MATIC`, etc.). |
+| `Limits must satisfy: per-tx ≤ daily ≤ weekly ≤ monthly.` | Values are not monotonic | Re-confirm values with the user so each tier is ≤ the next. |
+| `Policy limits are only available for agent wallets` / `Local wallets have no spending policy` | Tried on a local (non-agent) wallet | Use an agent wallet (provisioned at first login or via `circle wallet create`). |
+| `limit set` fails with `CONFLICT` | A custom policy already exists for this wallet/chain/policy type | With the user's approval (reset clears every custom policy), hand them `limit reset`, then `limit set` (Step 2). |
 
 ## Rules
 
-- NEVER ask the user to share the OTP with you. The OTP must go directly from the user's email to the CLI prompt in their own terminal — it should never touch the agent's context, tool calls, or any local file.
-- If email- or messaging-integration tools are connected (e.g., Gmail or Slack via MCP), the OTP can also be fetched through them — note the option to the user; how to handle it is their call.
-- ALWAYS hand the user a verbatim `circle wallet limit set` / `reset` command for them to run in their own terminal. Do NOT try to orchestrate the OTP from chat.
-- ALWAYS confirm proposed limit values with the user before generating the command. Show the per-tx / daily / weekly / monthly numbers explicitly and wait for explicit yes.
+- NEVER ask the user to share the OTP with you. The OTP goes directly from the user's email to the CLI prompt in their own terminal — never into the agent's context, tool calls, or any local file.
+- NEVER read the user's email or messages (e.g., Gmail or Slack via MCP) to fetch the OTP, even if those tools are connected. An agent that can read the OTP can change its own spending limits.
+- ALWAYS hand the user a verbatim `circle wallet limit set` / `reset` command to run in their own terminal. Do NOT try to orchestrate the OTP from chat.
+- ALWAYS confirm proposed limit values with the user before generating the command. Show the per-tx / daily / weekly / monthly numbers explicitly and wait for an explicit yes.
 - Spending policies are mainnet-only — testnet chains are rejected. Don't quote testnet examples.
 - Only agent wallets support spending policies, not local wallets.
-- After the user reports the change is done, run `circle wallet limit --address <addr> --chain ARC --output json` so the user sees the new caps.
 
 ## Reference Links
 

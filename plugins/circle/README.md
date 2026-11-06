@@ -42,6 +42,9 @@ Build embedded crypto wallets where users control their own assets. Supports Web
 ### use-circle-cli
 The holistic stablecoin CLI (`@circle-fin/cli`, command `circle`) for AI agents. Acts as the front door to Circle's full agent stack (wallet management, crosschain transfers, paid services, Gateway/Nanopayments, smart contracts, and spending policy) and routes to the specialized skills below for deep flows.
 
+### setup
+First-run onboarding for AI agents using Circle's agent wallet. Installs the Circle CLI, gets the user's Terms consent, installs Circle skills, logs in, creates and funds a wallet, then finds and pays for a marketplace service, linking to the dedicated skills for each step. Served at https://agents.circle.com/skills/setup.md.
+
 ### use-agent-wallet
 Bootstrap a non-custodial USDC agent wallet with the Circle CLI. Covers install check, terms acceptance, login, wallet creation, and status inspection, then hands off to the dedicated payment, funding, and policy skills.
 

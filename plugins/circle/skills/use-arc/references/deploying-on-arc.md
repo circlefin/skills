@@ -4,7 +4,7 @@ Runnable setup patterns for Arc (mainnet and testnet). See the skill's Quick Ref
 
 ## Frontend app (React + wagmi)
 
-Arc's chains are built into viem — no custom chain definition is needed: `arcTestnet` for testnet, `arc` for mainnet.
+Pass the RPC URL to `http()` explicitly; this works on any viem version. Bare `http()` uses the chain's default RPC: `arc` has none before viem `2.56.6`, and `arcTestnet` points at the retired `rpc.testnet.arc.network` before `2.57.5`.
 
 ```typescript
 import { createConfig, http } from 'wagmi'
@@ -12,7 +12,10 @@ import { arc, arcTestnet } from 'viem/chains'
 
 const config = createConfig({
   chains: [arcTestnet, arc],
-  transports: { [arcTestnet.id]: http(), [arc.id]: http() },
+  transports: {
+    [arcTestnet.id]: http('https://rpc.testnet.arc.io'),
+    [arc.id]: http('https://rpc.mainnet.arc.io'),
+  },
 })
 ```
 

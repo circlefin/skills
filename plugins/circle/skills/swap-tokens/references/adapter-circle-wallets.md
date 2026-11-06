@@ -1,6 +1,6 @@
 # Circle Wallets Adapter (Developer-Controlled Wallets)
 
-Reference implementation for token swaps using Circle developer-controlled wallets. Server-side only -- uses Circle API key and entity secret for wallet management.
+Token swaps from Circle developer-controlled wallets. Server-side only: the adapter needs the Circle API key and entity secret.
 
 ## Setup
 
@@ -18,13 +18,11 @@ npm install @circle-fin/swap-kit @circle-fin/adapter-circle-wallets
 CIRCLE_API_KEY=           # Circle API key (for Circle Wallets adapter)
 CIRCLE_ENTITY_SECRET=     # Entity secret (for Circle Wallets adapter)
 WALLET_ADDRESS=           # Circle wallet address to swap from
-KIT_KEY=                  # Optional; server-side authenticated swap requests only
+SWAP_API_KEY=             # Optional Circle API key for authenticated swap requests
 ```
 
-The Circle Wallets adapter and its credentials remain server-only. The swap
-request itself can be permissionless, so these examples omit `kitKey`. A server
-may add `config: { kitKey: process.env.KIT_KEY }` when authenticated requests
-are needed.
+The examples run keyless. To authenticate, add
+`config: { apiKey: process.env.SWAP_API_KEY }` to the `swap()` params.
 
 ## Using App Kit
 
@@ -35,7 +33,7 @@ import { inspect } from "util";
 
 const kit = new AppKit();
 
-const swapTokens = async (): Promise<void> => {
+export const swapTokens = async (): Promise<void> => {
   const apiKey = process.env.CIRCLE_API_KEY;
   const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
   const walletAddress = process.env.WALLET_ADDRESS;
@@ -69,7 +67,7 @@ const swapTokens = async (): Promise<void> => {
   }
 };
 
-void swapTokens();
+// Call swapTokens() only from the user's explicit confirm action, never at module startup.
 ```
 
 ## Using Swap Kit
@@ -81,7 +79,7 @@ import { inspect } from "util";
 
 const kit = new SwapKit();
 
-const swapTokens = async (): Promise<void> => {
+export const swapTokens = async (): Promise<void> => {
   const apiKey = process.env.CIRCLE_API_KEY;
   const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
   const walletAddress = process.env.WALLET_ADDRESS;
@@ -115,5 +113,5 @@ const swapTokens = async (): Promise<void> => {
   }
 };
 
-void swapTokens();
+// Call swapTokens() only from the user's explicit confirm action, never at module startup.
 ```

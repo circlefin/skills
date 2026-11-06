@@ -20,7 +20,7 @@ This browser script:
 
 ## Critical warning
 
-Do **not** send USDC directly to the Gateway Wallet contract with a normal ERC-20 transfer. The funds will not be credited to the unified balance. You must call the Gateway `deposit()` method.
+Do **not** send USDC directly to the Gateway Wallet contract with a normal ERC-20 transfer: that USDC is lost and is not credited to the unified balance. You must call the Gateway `deposit()` method.
 
 ## Runnable example
 
@@ -106,7 +106,7 @@ async function ensureChain(provider: Eip1193Provider) {
           chainId: targetChainHex,
           chainName: arcTestnet.name,
           nativeCurrency: arcTestnet.nativeCurrency,
-          rpcUrls: arcTestnet.rpcUrls.default.http,
+          rpcUrls: ["https://rpc.testnet.arc.io"],
           blockExplorerUrls: arcTestnet.blockExplorers?.default?.url
             ? [arcTestnet.blockExplorers.default.url]
             : [],
@@ -122,7 +122,7 @@ async function main() {
     method: "eth_requestAccounts",
   })) as string[];
 
-  const account = accounts[0];
+  const account = accounts[0] as `0x${string}` | undefined;
   if (!account) throw new Error("No wallet account returned");
 
   await ensureChain(provider);

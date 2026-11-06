@@ -26,15 +26,15 @@ Funding the backing EOA with native gas is unnecessary. Native USDC supports ERC
 | Flag | Source |
 |---|---|
 | `--chain` | Circle chain code, for example `ARC`, `BASE`, `BASE-SEPOLIA` |
-| `--sca` | The linked SCA: `circle wallet list --chain <CHAIN> --type agent --output json` |
+| `--sca` | The linked SCA: `circle wallet list --chain '<CHAIN>' --type agent --output json` |
 | `--eoa` | The backing EOA holding the USDC |
-| `--usdc` | `circle contract address usdc --chain <CHAIN>` |
+| `--usdc` | `circle contract address usdc --chain '<CHAIN>'` |
 | `--amount-atomic` | USDC amount × 1,000,000 (USDC has 6 decimals) |
 
 Confirm the backing EOA's USDC balance first:
 
 ```bash
-circle contract query "balanceOf(address)" <EOA> --contract <USDC> --chain <CHAIN>
+circle contract query "balanceOf(address)" '<EOA>' --contract '<USDC>' --chain '<CHAIN>'
 ```
 
 ## Sign the authorization
@@ -43,11 +43,11 @@ Signing authorizes movement. Show the chain, USDC contract, from (backing EOA), 
 
 ```bash
 node <SKILL_DIR>/scripts/sign-eoa-authorization.mjs \
-  --chain <CHAIN> \
-  --sca <SCA> \
-  --eoa <EOA> \
-  --usdc <USDC> \
-  --amount-atomic <RAW_USDC_AMOUNT>
+  --chain '<CHAIN>' \
+  --sca '<SCA>' \
+  --eoa '<EOA>' \
+  --usdc '<USDC>' \
+  --amount-atomic '<RAW_USDC_AMOUNT>'
 ```
 
 The script:
@@ -81,7 +81,7 @@ Record the Circle transaction ID, idempotency key, onchain transaction hash, net
 | Output | Meaning | Action |
 |---|---|---|
 | `No active Circle login` | Not logged in for this chain's environment, or the session expired | `circle wallet login <email>` (with `--testnet` for testnets), then sign again |
-| `... is not one of your Agent Wallets` | `--sca`, `--chain`, or the logged-in account does not match | Re-check `--sca` with `circle wallet list --chain <CHAIN> --type agent` |
+| `... is not one of your Agent Wallets` | `--sca`, `--chain`, or the logged-in account does not match | Re-check `--sca` with `circle wallet list --chain '<CHAIN>' --type agent` |
 | `The backing EOA of ... is X, not Y` | The funds are not at this SCA's backing EOA | Stop and escalate to Circle Support |
 | `Signature is from ..., not ...` or a `sign/typedData` error | Circle did not return the backing EOA's signature | Do not submit; escalate with the output |
 | `authorization is expired` | More than one hour passed since signing | Sign again to get a fresh authorization |

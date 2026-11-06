@@ -1,10 +1,6 @@
-# Transfer Tokens Across Wallets
+# Check Balances and Transfer Tokens
 
-Use these TypeScript snippets to find token balances, create a transfer, and poll transaction status.
-
-## Get source wallet balances and token address
-
-Use the [Get Token Balance for a Wallet](https://developers.circle.com/api-reference/wallets/developer-controlled-wallets/list-wallet-balance) API or the SDK method to retrieve balances and the `tokenAddress` for transfers:
+## Get balances and the token address
 
 ```ts
 const balanceResponse = await circleDeveloperSdk.getWalletTokenBalance({
@@ -14,7 +10,7 @@ const balanceResponse = await circleDeveloperSdk.getWalletTokenBalance({
 const tokenBalances = balanceResponse.data?.tokenBalances ?? [];
 ```
 
-Find the token you want to transfer and capture its `tokenAddress`.
+Capture the `tokenAddress` of the token to transfer.
 
 ## Create transfer transaction
 
@@ -23,7 +19,7 @@ const transferResponse = await circleDeveloperSdk.createTransaction({
   walletId: "<source-wallet-id>",
   tokenAddress: "<token-address>",
   destinationAddress: "<destination-wallet-address>",
-  amounts: ["0.01"],
+  amount: ["0.01"],
   fee: {
     type: "level",
     config: { feeLevel: "MEDIUM" },
@@ -32,8 +28,6 @@ const transferResponse = await circleDeveloperSdk.createTransaction({
 
 const transactionId = transferResponse.data?.id;
 ```
-
-Creates an outbound transfer transaction and returns a transaction ID for tracking.
 
 ## Poll transaction state
 
@@ -47,7 +41,7 @@ const state = tx?.state;
 const txHash = tx?.txHash;
 ```
 
-Use `state` to determine completion and `txHash` for chain explorer links.
+`state` drives completion checks; `txHash` builds explorer links.
 
 ## Estimate transfer fees
 
@@ -55,15 +49,16 @@ Use `state` to determine completion and `txHash` for chain explorer links.
 const feeEstimate = await circleDeveloperSdk.estimateTransferFee({
   walletId: "<source-wallet-id>",
   tokenAddress: "<token-address>",
+  blockchain: "ARC-TESTNET", // required with tokenAddress
   destinationAddress: "<destination-wallet-address>",
-  amounts: ["0.01"],
+  amount: ["0.01"],
 });
 
 const { low, medium, high } = feeEstimate.data ?? {};
 // Each tier includes: gasLimit, gasPrice, maxFee, priorityFee, baseFee, networkFee
 ```
 
-Estimate fees before transferring to choose an appropriate fee level or set custom gas parameters.
+Use the estimate to pick a fee level or set custom gas parameters.
 
 ## Accelerate a pending transaction
 
@@ -73,7 +68,7 @@ const accelerateResponse = await circleDeveloperSdk.accelerateTransaction({
 });
 ```
 
-Speeds up a `SENT` transaction by resubmitting with higher gas. Additional gas fees may be incurred. Only works while the transaction is in the `SENT` state (still pending on-chain).
+Resubmits with higher gas; may incur additional gas fees. Works only in the `SENT` or `STUCK` state.
 
 ## Cancel a pending transaction
 
@@ -85,7 +80,7 @@ const cancelResponse = await circleDeveloperSdk.cancelTransaction({
 const state = cancelResponse.data?.state;
 ```
 
-Attempts to cancel a transaction. This is best-effort -- cancellation may fail if the blockchain has already processed the original transaction. Gas fees may still be incurred.
+Best-effort: fails if the chain already processed the original transaction. Gas fees may still be incurred.
 
 ## Reference Links
 

@@ -12,10 +12,6 @@ Arc is Circle's blockchain where USDC is the native gas token. Developers and us
 
 ## Prerequisites / Setup
 
-### Wallet Funding
-
-Get testnet USDC from https://faucet.circle.com before sending any transactions.
-
 ### Environment Variables
 
 ```bash
@@ -34,7 +30,7 @@ PRIVATE_KEY=         # Deployer wallet private key
 | RPC | `https://rpc.mainnet.arc.io` | `https://rpc.testnet.arc.io` |
 | WebSocket | `wss://rpc.mainnet.arc.io` | `wss://rpc.testnet.arc.io` |
 | Explorer | https://explorer.arc.io | https://explorer.testnet.arc.io |
-| Faucet | -- (fund with real USDC) | https://faucet.circle.com |
+| Faucet | -- (see Best Practices) | https://faucet.circle.com |
 | CCTP Domain | `26` | `26` |
 
 ### Token Addresses for Arc
@@ -57,15 +53,15 @@ For other tokens, see the [Arc contract addresses](https://docs.arc.io/arc/refer
   - NEVER read the native balance and the USDC ERC-20 balance and add or show them separately — that double-counts one pool. Show a single USDC balance (the 6-decimal ERC-20 view).
   - USDC ↔ native is NOT a swap or conversion — it is the same asset. Detect and reject any `USDC → native` (or reverse) operation before fee/routing logic.
   - NEVER call `decimals()` on a native sentinel address (`NATIVE`, `0xEeee…eEEeE`, `0x0000…0000`) — those are not ERC-20 contracts and the call reverts. The ERC-20 is 6 decimals; native is 18.
-  - The two views differ by a factor of 10^12 (`1e18` native = `1e6` ERC-20). Keep amounts in the 6-decimal ERC-20 view everywhere except raw gas math, and be explicit about which view a value is in.
-- **Mainnet and testnet**: Arc mainnet (chain ID `5042`) and Arc testnet (chain ID `5042002`) are both available — see Network Details for the config of each. Mainnet transactions move real USDC and are irreversible; use testnet for development and demos.
+  - The two views differ by a factor of 10^12 (`1e18` native = `1e6` ERC-20). Be explicit about which view a value is in.
+- **Mainnet and testnet**: Arc mainnet (chain ID `5042`) and Arc Testnet (chain ID `5042002`) are both live — see Network Details.
 - **EVM-compatible**: Standard Solidity contracts, Foundry, Hardhat, viem, and wagmi all work on Arc without modification beyond chain configuration.
 
 ## Implementation Patterns
 
 READ `references/deploying-on-arc.md` for the runnable setup — wagmi chain config, Foundry deploy, Circle's pre-audited contract templates, and bridging USDC in.
 
-1. **Configure the chain** — use the built-in viem chains (no custom definition needed): `arcTestnet` for testnet, `arc` for mainnet.
+1. **Configure the chain** — use viem's built-in `arcTestnet` (testnet) and `arc` (mainnet); no custom chain definition is needed. Pass the RPC URL explicitly (see Best Practices).
 2. **Deploy contracts** — standard Foundry/Hardhat against `ARC_TESTNET_RPC_URL` (or `ARC_MAINNET_RPC_URL`), or Circle's Smart Contract Platform templates (ERC-20/721/1155/Airdrop).
 3. **Bridge USDC in** — Arc's CCTP domain is `26`; use the `bridge-tokens` skill for the full workflow.
 
@@ -81,9 +77,9 @@ READ `references/deploying-on-arc.md` for the runnable setup — wagmi chain con
 
 ### Best Practices
 
-- Arc mainnet (`arc`) and Arc Testnet (`arcTestnet`) both ship in Viem -- no custom chain definition is required.
+- ALWAYS pass the Arc RPC URL explicitly (e.g. `http(ARC_TESTNET_RPC_URL)`), or require viem `>=2.56.6` for `arc` and `>=2.57.5` for `arcTestnet` — older defaults are empty or point at a retired host.
 - ALWAYS verify the user is on the intended Arc network (mainnet chain ID `5042` or testnet `5042002`) before submitting transactions.
-- ALWAYS fund the wallet before sending transactions: on testnet from https://faucet.circle.com; on mainnet with real USDC.
+- ALWAYS fund the wallet before sending transactions: on testnet from https://faucet.circle.com; on mainnet, request gas USDC through your Circle point of contact ([RPC endpoints](https://docs.arc.io/arc/references/rpc-endpoints.md)).
 - ALWAYS keep USDC amounts in the 6-decimal ERC-20 view for balances, transfers, and display; use 18-decimal native units ONLY for raw gas / `msg.value` math. Never sum the two views or treat native and USDC as separate assets.
 - Arc mainnet moves **real USDC** and transactions are irreversible. Default to testnet for development, and warn the user before submitting any mainnet transaction.
 
@@ -104,9 +100,6 @@ Arc is natively supported across Circle's product suite. Once your app is runnin
 ## Reference Links
 
 - [Arc Docs](https://docs.arc.io/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.
-- [Arc Explorer (Mainnet)](https://explorer.arc.io)
-- [Arc Explorer (Testnet)](https://explorer.testnet.arc.io)
-- [Circle Faucet](https://faucet.circle.com)
 - [Circle Developer Docs](https://developers.circle.com/llms.txt) -- **Always read this first** when looking for relevant documentation from the source website.
 
 ---

@@ -1,7 +1,7 @@
 ---
 name: recover-eco-funds
 description: "Recover USDC from a legacy Circle CLI Gateway `--method eco` deposit whose fixed refund recipient is the SCA's backing EOA. Use this skill for legacy Eco intents that are stuck, expired, waiting for refund, refunded to `eoaOwnerAddress`, missing from Gateway, or need a permissionless self-refund. Do not use its executable recovery phases for current Gateway v2 deposits, which set `refundRecipient` to the SCA. It covers calling Eco's Portal `refund(...)` with exact onchain intent data, then moving refunded USDC from the backing EOA to the linked SCA with ERC-3009, relayed by the SCA so the backing EOA needs no gas. The backing-EOA sweep also applies when USDC was sent directly to an Agent Wallet's backing EOA and the CLI reports \"Wallet not found\" for that address."
-allowed-tools: ["Read", "Bash(mkdir -p ./eco-recovery-evidence)", "Bash(circle --version)", "Bash(circle wallet status --output json)", "Bash(circle gateway deposit --help)", "Bash(circle wallet execute --help)", "Bash(circle contract query --help)", "Bash(circle wallet list --chain * --type agent --output json)", "Bash(circle wallet balance --address * --chain * --output json)", "Bash(circle gateway balance --address * --chain * --output json)", "Bash(circle transaction list --address * --chain * --operation transfer --tx-type outbound --state confirmed --output json)", "Bash(curl -fsS \"https://api.eco.com/circle-gateway/v2/depositAddresses/*\")", "Bash(curl -fsS --request POST --url https://quotes.eco.com/api/v3/intents/intentStatus --header \"Content-Type: application/json\" --data '{\"intentHash\":\"*\"}')", "Bash(curl -fsS --request POST --url https://quotes.eco.com/api/v3/intents/intentStatus --header \"Content-Type: application/json\" --data '{\"intentCreatedHash\":\"*\"}')", "Bash(*/node_modules/.bin/tsx */scripts/eco-self-refund.mjs *)", "Bash(node */scripts/sign-eoa-authorization.mjs *)"]
+allowed-tools: ["Read", "Bash(mkdir -p ./eco-recovery-evidence)", "Bash(circle --version)", "Bash(circle wallet status --output json)", "Bash(circle gateway deposit --help)", "Bash(circle wallet execute --help)", "Bash(circle contract query --help)", "Bash(circle wallet list --chain * --type agent --output json)", "Bash(circle wallet balance --address * --chain * --output json)", "Bash(circle gateway balance --address * --chain * --output json)", "Bash(circle transaction list --address * --chain * --operation transfer --tx-type outbound --state complete --output json)", "Bash(curl -fsS \"https://api.eco.com/circle-gateway/v2/depositAddresses/*\")", "Bash(curl -fsS --request POST --url https://quotes.eco.com/api/v3/intents/intentStatus --header \"Content-Type: application/json\" --data '{\"intentHash\":\"*\"}')", "Bash(curl -fsS --request POST --url https://quotes.eco.com/api/v3/intents/intentStatus --header \"Content-Type: application/json\" --data '{\"intentCreatedHash\":\"*\"}')", "Bash(*/node_modules/.bin/tsx */scripts/eco-self-refund.mjs *)", "Bash(node */scripts/sign-eoa-authorization.mjs *)"]
 requirements:
   runtimes: [node]
   connectors: []
@@ -37,6 +37,7 @@ Current Gateway v2/Circle CLI Eco deposits set the SCA as the refund recipient. 
 ## Safety boundary
 
 - Treat event/creation chain, vault/refund chain, intent destination value, Gateway destination chain, SCA, backing EOA, creation-chain Portal, refund-chain Portal, vault, token, amount, route hash, intent hash, and deadline as different fields. Never substitute one for another. A composed Eco flow can publish the event on one chain while leaving the refundable vault on another, and Portal deployment addresses need not match across chains.
+- Check every value before putting it in a command, whether it came from the user, an evidence file, or the Eco API: addresses are `0x` + 40 hex characters; transaction and intent hashes are `0x` + 64 hex characters; chains are Circle CLI codes (`BASE`, `ARB-SEPOLIA`); chain IDs are digits only; RPC URLs start with `http://` or `https://` and contain no whitespace, quotes, backticks, `$`, `;`, `|`, `&`, `(`, `)`, `<`, `>`, or backslashes. Single-quote every value in the command. If a value fails, stop and ask the user; never edit it to make it pass. The allowed-tools entries for the two scripts accept any arguments, so this check is the guard; the scripts re-validate the same fields.
 - Derive the backing EOA from the Circle wallet API's `eoaOwnerAddress`; do not accept a user-supplied owner without comparing it to that field.
 - Before a legacy self-refund broadcast, require `reward.creator` to equal the selected Circle wallet's API-verified `eoaOwnerAddress`. If it equals the SCA, classify it as the current direct-to-SCA flow and stop before executable recovery. Although `refund(...)` is permissionless, never spend the user's gas to refund an unrelated wallet.
 - Reconstruct the refund tuple from the source-chain `IntentPublished` event. The Eco status API is useful context but is not authoritative enough to build calldata.
@@ -76,9 +77,9 @@ circle contract query --help
 Identify the SCA and inspect the creation chain, candidate vault/refund chains, and Gateway destination:
 
 ```bash
-circle wallet list --chain <SOURCE_CHAIN> --type agent --output json
-circle wallet balance --address <SCA> --chain <SOURCE_CHAIN> --output json
-circle gateway balance --address <SCA> --chain <GATEWAY_DESTINATION_CHAIN> --output json
+circle wallet list --chain '<SOURCE_CHAIN>' --type agent --output json
+circle wallet balance --address '<SCA>' --chain '<SOURCE_CHAIN>' --output json
+circle gateway balance --address '<SCA>' --chain '<GATEWAY_DESTINATION_CHAIN>' --output json
 ```
 
 Collect at least one intent identifier:
@@ -94,24 +95,24 @@ Eco does not provide a list-intents-by-SCA endpoint. Map the SCA to the single-u
 1. Identify the source-chain SCA:
 
    ```bash
-   circle wallet list --chain <SOURCE_CHAIN> --type agent --output json
+   circle wallet list --chain '<SOURCE_CHAIN>' --type agent --output json
    ```
 
-2. Get `<VAULT_ADDRESS>` from the original `circle gateway deposit --output json` result or the saved evidence. Its `vaultAddress`, `sourceAddress`, `sourceBlockchain`, `transferTxHash`, and `deadline` fields identify the deposit. If that output was not saved, list the SCA's confirmed outbound transfers and find the exact USDC funding transaction; its `destinationAddress` is the Eco vault:
+2. Get `<VAULT_ADDRESS>` from the original `circle gateway deposit --output json` result or the saved evidence. Its `vaultAddress`, `sourceAddress`, `sourceBlockchain`, `transferTxHash`, and `deadline` fields identify the deposit. If that output was not saved, list the SCA's completed outbound transfers and find the exact USDC funding transaction; its `destinationAddress` is the Eco vault:
 
    ```bash
    circle transaction list \
-     --address <SCA> \
-     --chain <SOURCE_CHAIN> \
+     --address '<SCA>' \
+     --chain '<SOURCE_CHAIN>' \
      --operation transfer \
      --tx-type outbound \
-     --state confirmed \
+     --state complete \
      --output json
    ```
 
    Match the intended amount, time, USDC token, and transaction hash. Do not select a vault from address alone when multiple deposits exist.
 
-3. Query the current Gateway deposit-vault record. Use the EVM chain ID for the chain that funded the vault (`8453` for Base mainnet or `84532` for Base Sepolia; verify current CLI support with `circle gateway deposit --help`):
+3. Query the current Gateway deposit-vault record with the EVM chain ID of the chain that funded the vault — `8453` (Base), `42161` (Arbitrum), `10` (OP Mainnet), or `84532` (Base Sepolia). Verify current CLI support with `circle gateway deposit --help`:
 
    ```bash
    curl -fsS \
@@ -183,18 +184,18 @@ Prefer a native Circle CLI recovery command if the installed CLI exposes one in 
 ```bash
 <CIRCLE_CLI_REPO>/node_modules/.bin/tsx \
   <SKILL_DIR>/scripts/eco-self-refund.mjs \
-  --circle-cli-repo <CIRCLE_CLI_REPO> \
-  --chain <REFUND_CHAIN> \
-  --event-chain-id <CREATION_CHAIN_EVM_ID> \
-  --refund-chain-id <REFUND_CHAIN_EVM_ID> \
-  --event-rpc-url <CREATION_CHAIN_RPC_URL> \
-  --refund-rpc-url <REFUND_CHAIN_RPC_URL> \
-  --sca <SCA> \
-  --event-portal <CREATION_CHAIN_ECO_PORTAL> \
-  --portal <REFUND_CHAIN_ECO_PORTAL> \
-  --creation-tx <SOURCE_TX_HASH> \
-  --intent-hash <INTENT_HASH> \
-  --evidence-dir <EVIDENCE_DIR> \
+  --circle-cli-repo '<CIRCLE_CLI_REPO>' \
+  --chain '<REFUND_CHAIN>' \
+  --event-chain-id '<CREATION_CHAIN_EVM_ID>' \
+  --refund-chain-id '<REFUND_CHAIN_EVM_ID>' \
+  --event-rpc-url '<CREATION_CHAIN_RPC_URL>' \
+  --refund-rpc-url '<REFUND_CHAIN_RPC_URL>' \
+  --sca '<SCA>' \
+  --event-portal '<CREATION_CHAIN_ECO_PORTAL>' \
+  --portal '<REFUND_CHAIN_ECO_PORTAL>' \
+  --creation-tx '<SOURCE_TX_HASH>' \
+  --intent-hash '<INTENT_HASH>' \
+  --evidence-dir '<EVIDENCE_DIR>' \
   --estimate-fee
 ```
 
@@ -203,7 +204,7 @@ The invocation is read-only. It decodes `IntentPublished` from the explicitly se
 After showing a preflight with `recipientOwnership.checked: true` and an `estimatedFee`, and receiving explicit user approval, re-run with both:
 
 ```bash
---submit --confirm-intent <INTENT_HASH>
+--submit --confirm-intent '<INTENT_HASH>'
 ```
 
 The confirmation value binds approval to one intent rather than to an open-ended refund operation.
@@ -229,14 +230,14 @@ Read [references/eoa-to-sca.md](references/eoa-to-sca.md) before acting. This is
 Confirm the backing EOA's balance, then show the chain, USDC contract, backing EOA, SCA, and raw and decimal amount, and get explicit user approval before signing:
 
 ```bash
-circle contract query "balanceOf(address)" <BACKING_EOA> --contract <USDC_CONTRACT> --chain <SOURCE_CHAIN>
+circle contract query "balanceOf(address)" '<BACKING_EOA>' --contract '<USDC_CONTRACT>' --chain '<SOURCE_CHAIN>'
 
 node <SKILL_DIR>/scripts/sign-eoa-authorization.mjs \
-  --chain <SOURCE_CHAIN> \
-  --sca <SCA> \
-  --eoa <BACKING_EOA> \
-  --usdc <USDC_CONTRACT> \
-  --amount-atomic <RAW_USDC_AMOUNT>
+  --chain '<SOURCE_CHAIN>' \
+  --sca '<SCA>' \
+  --eoa '<BACKING_EOA>' \
+  --usdc '<USDC_CONTRACT>' \
+  --amount-atomic '<RAW_USDC_AMOUNT>'
 ```
 
 The helper:
@@ -286,7 +287,7 @@ Report:
 
 - Eco Portal contract: https://docs.eco.com/routes/architecture/portal
 - Eco vaults: https://docs.eco.com/routes/architecture/vault
-- Eco intent status API: https://docs.eco.com/api-reference/quotes-v3/get-intent-status
+- Eco intent status (undocumented legacy endpoint): `POST https://quotes.eco.com/api/v3/intents/intentStatus`
 - Eco contracts: https://github.com/eco/eco-routes
 - EIP-3009: https://eips.ethereum.org/EIPS/eip-3009
 - Circle USDC contracts: https://developers.circle.com/stablecoins/usdc-contract-addresses

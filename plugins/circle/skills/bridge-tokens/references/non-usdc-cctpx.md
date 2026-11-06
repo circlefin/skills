@@ -33,7 +33,7 @@ Every CCTPx transfer pays a relayer fee for the destination mint. `FAST` (the de
 Keep quoting and bridging in separate functions. `quoteBridge()` only reads a fee and never moves funds. `executeBridge()` moves funds, so call it only from the user's explicit confirm action, such as the **Bridge** button handler or, in a script, an interactive confirmation (see "Runnable script" below) -- never directly after `quoteBridge()`, from an effect, or at module startup. With App Kit, call `kit.estimateBridge()` and `kit.bridge()` with the same params.
 
 ```ts
-// Quote only. Show estimate.fees to the user; this never moves funds.
+// Quote only. Show estimate.fees as-is (decimal strings); this never moves funds.
 export async function quoteBridge(
   params: BridgeParams,
 ): Promise<BridgeEstimateResult> {
@@ -144,7 +144,7 @@ export const tokenIdParams: BridgeParams = {
 
 ## Unsupported routes and options
 
-When the registry does not list the token on both chains, `kit.estimate()` (App Kit: `kit.estimateBridge()`) and `kit.bridge()` throw a `KitError` with code `INPUT_UNSUPPORTED_ROUTE` (1003). If the registry cannot be reached, they throw a retryable `SERVICE_ROUTE_CHECK_UNAVAILABLE` instead. Do not redirect an unsupported request to a different CCTPx chain pair; ask the user to choose a supported route, or use the `swap-tokens` skill when a cross-chain swap can reach the requested token and chain.
+When the registry does not list the token on both chains, `kit.estimate()` (App Kit: `kit.estimateBridge()`) and `kit.bridge()` throw a `KitError` whose `name` is `INPUT_UNSUPPORTED_ROUTE` (`code` 1003). If the registry cannot be reached, they throw a retryable one named `SERVICE_ROUTE_CHECK_UNAVAILABLE` (`code` 8003) instead. Do not redirect an unsupported request to a different CCTPx chain pair; ask the user to choose a supported route, or use the `swap-tokens` skill when a cross-chain swap can reach the requested token and chain.
 
 CCTPx routes reject custom fees, `feePayment: "destination"`, and `useForwarder: false` with `INPUT_VALIDATION_FAILED`. Omit these options.
 
@@ -162,4 +162,4 @@ To send the minted tokens to a different address, add `recipientAddress` to `to`
 to: { adapter, chain: "Arc_Testnet", recipientAddress: "0x<recipient>" }
 ```
 
-Recovery from a mid-transfer failure uses the same pattern as USDC -- `kit.retry(result, ...)` on Bridge Kit, `kit.retryBridge(result, ...)` on App Kit -- and never re-runs `kit.bridge()` from scratch. A CCTPx retry is possible only after the `transfer` step was submitted; it resumes the attestation and relayer forward. A failure before `transfer` leaves no funds in flight, so fix the cause and call `kit.bridge()` again. See `forwarding-events-recovery.md`.
+Recovery from a mid-transfer failure uses the same pattern as USDC -- `kit.retry(result, ...)` on Bridge Kit, `kit.retryBridge(result, ...)` on App Kit -- and never re-runs `kit.bridge()` from scratch. A CCTPx retry is possible only when the `transfer` step recorded a source transaction hash; it resumes the attestation and relayer forward. If the transfer went out as an EIP-5792 batch (the default when the wallet supports it), the step may carry only a `batchId`: `retry` then rejects with `INPUT_RETRY_NOT_SUPPORTED`, but the transfer may still land. Check `new CCTPXBridgingProvider().hasOutstandingTransfer(result)` (exported by `@circle-fin/bridge-kit` and `@circle-fin/provider-cctpx`) and never call `kit.bridge()` again while it returns `true`. Only a result with no submitted `transfer` step leaves no funds in flight. See `forwarding-events-recovery.md`.

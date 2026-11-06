@@ -113,7 +113,7 @@ const typedData = {
       { name: "maxFee", type: "uint256" },
       { name: "spec", type: "TransferSpec" },
     ],
-  },
+  } as const,
   primaryType: "BurnIntent" as const,
 };
 
@@ -188,7 +188,7 @@ async function main() {
   });
 
   const burnIntent = {
-    maxBlockHeight: (2n ** 256n - 1n).toString(),
+    maxBlockHeight: 2n ** 256n - 1n,
     maxFee: MAX_FEE,
     spec: {
       version: 1,
@@ -204,7 +204,7 @@ async function main() {
       destinationCaller: toBytes32(zeroAddress),
       value: parseUnits(TRANSFER_AMOUNT_USDC, 6),
       salt: randomHex32(),
-      hookData: "0x",
+      hookData: "0x" as const,
     },
   };
 

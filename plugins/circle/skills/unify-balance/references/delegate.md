@@ -1,11 +1,11 @@
 # Delegate Lifecycle
 
-Reference implementation for the delegate pattern -- grant spending rights to another address and deposit on behalf of another account. Includes examples for both App Kit and standalone Unified Balance Kit.
+Grant spending rights to another address and deposit on behalf of another account, with App Kit and standalone Unified Balance Kit.
 
-Delegation allows a different signer to move funds out of an account owner's unified balance. Common use cases include:
+Use cases:
 
-- **SCA depositors**: Smart contract accounts that cannot produce ECDSA signatures directly -- an EOA delegate signs burn intents on their behalf.
-- **Operational separation**: A service EOA spending from a treasury EOA's balance, or a payment processor spending from a merchant's unified balance.
+- **Operational separation**: a service EOA spending from a treasury EOA's balance, or a payment processor spending from a merchant's unified balance.
+- **SCA depositors on SDKs older than the ERC-1271 direct-spend release** (see Delegates in SKILL.md): smart contract accounts cannot sign burn intents there, so an EOA delegate signs for them.
 
 Delegates must be added explicitly per chain. `getDelegateStatus()` returns `'none'`, `'pending'`, or `'ready'` -- only spend from a delegate once the status is `'ready'`.
 

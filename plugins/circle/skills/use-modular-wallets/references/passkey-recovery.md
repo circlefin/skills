@@ -100,7 +100,7 @@ const newCredential = await toWebAuthnCredential({
 
 ### Step 4: Execute Recovery
 
-Use the mnemonic EOA to authorize replacing the lost passkey with the new one.
+Use the mnemonic EOA to add the new passkey as an owner. This does NOT remove the old passkey; if it may have been stolen rather than lost, remove it with a separate owner-removal flow ([Set up passkey recovery](https://developers.circle.com/wallets/modular/set-up-passkey-recovery.md)).
 
 ```typescript
 const localAccount = mnemonicToAccount(userEnteredMnemonic.trim())
@@ -111,7 +111,7 @@ const tempAccount = await toCircleSmartAccount({
   owner: localAccount,
 })
 
-// Execute recovery -- replaces the lost passkey owner with the new credential
+// Adds newCredential as an owner
 await bundlerClient.executeRecovery({
   account: tempAccount,
   credential: newCredential,
@@ -126,5 +126,5 @@ localStorage.setItem('credential', JSON.stringify(newCredential))
 
 1. **Setup**: User registers passkey -> generates mnemonic -> registers recovery address on-chain
 2. **Loss**: Original passkey becomes inaccessible (lost device, deleted credential)
-3. **Recovery**: User enters mnemonic -> creates new passkey -> `executeRecovery` swaps the owner on-chain
-4. **Result**: Smart account is now controlled by the new passkey; the old passkey is revoked
+3. **Recovery**: User enters mnemonic -> creates new passkey -> `executeRecovery` adds it as an owner on-chain
+4. **Result**: The new passkey can sign; the old passkey is NOT removed (see Step 4)

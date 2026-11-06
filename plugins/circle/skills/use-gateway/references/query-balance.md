@@ -9,20 +9,15 @@ Canonical runnable references:
 This request:
 
 1. Sends a `POST` request to the Gateway `/balances` API
-2. Passes one or more `{ domain, depositor }` source tuples
-3. Returns the unified balance for each source in human-readable USDC units
+2. Passes one or more `{ domain?, depositor }` sources
+3. Returns each source's balance
 
 ## Critical notes
 
-Each source is a pair of:
-- `domain`: the Gateway domain ID for the source chain
-- `depositor`: the depositor address on that chain
-
-For Solana depositors, use the base58 public key as the `depositor` value.
-
-`balance` is returned as a decimal string in human-readable USDC units with 6 decimals.
-
-Domains with zero balance may still be returned.
+- `depositor` (required): the depositor address. For Solana, use the base58 public key.
+- `domain` (optional): the Gateway domain ID of the source chain. Omit it to get the depositor's balance on every domain where the address is valid.
+- `balance` is a decimal string in human-readable USDC units (6 decimals).
+- Domains with zero balance may still be returned.
 
 ## Endpoint
 

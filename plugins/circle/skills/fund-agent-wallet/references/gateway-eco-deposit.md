@@ -1,4 +1,4 @@
-# Eco deposit (BASE → Arc)
+# Eco deposit (BASE, ARB, or OP → Arc)
 
 ```bash
 # Deposit (--amount, --address, --chain, --method are all required)

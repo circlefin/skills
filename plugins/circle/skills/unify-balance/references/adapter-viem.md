@@ -328,7 +328,7 @@ void spend();
 
 ## Spend with Forwarding Service (Using App Kit)
 
-Set `useForwarder: true` on the destination to have Circle's Forwarding Service handle attestation fetching and mint submission automatically. This removes the need to maintain a wallet on the destination chain. The Forwarding Service deducts a fee from the minted amount.
+Set `useForwarder: true` on the destination so the Forwarding Service fetches the attestation and submits the mint; no destination-chain wallet is needed.
 
 With a destination adapter:
 
@@ -356,6 +356,7 @@ const spendWithForwarder = async (): Promise<void> => {
         allocations: { amount: "1.00", chain: "Base_Sepolia" },
       },
       to: {
+        adapter,
         chain: "Arc_Testnet",
         recipientAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
         useForwarder: true,
@@ -372,7 +373,7 @@ const spendWithForwarder = async (): Promise<void> => {
 void spendWithForwarder();
 ```
 
-Without a destination adapter (server-side or custodial workflows). Provide `recipientAddress` instead. Since the Forwarding Service submits the mint transaction, no locally-signed transaction hash is generated.
+Without a destination adapter (server-side or custodial workflows), provide `recipientAddress`. The Forwarding Service submits the mint, so no locally signed transaction hash is generated.
 
 ```ts
 import { AppKit } from "@circle-fin/app-kit";

@@ -1,30 +1,19 @@
 # Creating User-Controlled Wallets with PIN
 
-## Overview
+PIN is the simplest auth method: no Circle Console configuration beyond the API key and App ID.
 
-Complete flow for creating user-controlled wallets using PIN authentication. PIN is the simplest method -- no configuration in the Circle Developer Console beyond API key and App ID. Requires both a frontend (Web SDK) and backend (Node.js SDK) component.
+## Flow
 
-## User Flow
+Each step maps to one frontend handler and one backend call:
 
-1. **Enter user ID and click "Create User"**: Your backend creates a new user in Circle's system using a unique identifier (email, username, UUID, etc.).
-
-2. **Click "Get User Token"**: Your backend retrieves a session token (`userToken`) and `encryptionKey` for the user. Valid for 60 minutes.
-
-3. **Click "Initialize User"**: Your backend creates a challenge for PIN setup and wallet creation. If the user already has wallets, load them instead. Otherwise, Circle returns a `challengeId`.
-
-4. **Click "Create Wallet"**: The Web SDK executes the challenge. The user sets up their PIN and security questions through Circle's hosted UI, and Circle creates the wallet.
+1. `handleCreateUser` -> `createUser({ userId })`. `userId` must be at least 5 characters and unique per user (email, username, UUID, etc.). Error 155101 means the user already exists -- continue to step 2.
+2. `handleGetUserToken` -> `createUserToken({ userId })` returns `userToken` (valid 60 minutes) and `encryptionKey`.
+3. `handleInitializeUser` -> `createUserPinWithWallets` returns a `challengeId`. Error 155106 means the user already has wallets -- load them with `listWallets` instead.
+4. `handleCreateWallet` -> `sdk.execute(challengeId)`. The user sets a PIN and security questions in Circle's hosted UI, and Circle creates the wallet.
 
 ## Prerequisites
 
-1. **Circle Developer Console**:
-   - Get API key from Project Settings
-   - Navigate to Wallets -> User Controlled -> Configurator
-   - Copy the App ID from the configurator
-   - No additional configuration needed -- PIN works out of the box
-
-2. **User ID Requirements**:
-   - Must be at least 5 characters
-   - Should be unique per user (email, username, UUID, etc.)
+In the Circle Developer Console, get the API key from Project Settings, then copy the App ID from Wallets -> User Controlled -> Configurator.
 
 ## Backend SDK Methods
 
@@ -37,16 +26,12 @@ const response = await circleClient.createUser({ userId });
 
 ### Step 2: Get a session token
 
-Returns `userToken` (valid for 60 minutes) and `encryptionKey`.
-
 ```ts
 const response = await circleClient.createUserToken({ userId });
 // response.data: { userToken, encryptionKey }
 ```
 
 ### Step 3: Initialize user with PIN and create wallet
-
-Returns a `challengeId` for the Web SDK to execute. Error code 155106 means user already has wallets -- fetch them instead.
 
 ```ts
 const response = await circleClient.createUserPinWithWallets({
@@ -76,13 +61,7 @@ const response = await circleClient.getWalletTokenBalance({
 
 ## Frontend Component
 
-Unlike email/social auth, PIN does not require a login callback -- the SDK is initialized without one.
-
-The frontend implements four button handlers mapping to the User Flow steps:
-1. `handleCreateUser` -- Create user in Circle's system
-2. `handleGetUserToken` -- Get session token
-3. `handleInitializeUser` -- Initialize user (get challenge)
-4. `handleCreateWallet` -- Create wallet (execute challenge with PIN setup)
+PIN auth needs no login callback, so the SDK is initialized without one.
 
 ```tsx
 import { useState, useEffect, useRef } from "react";
@@ -149,8 +128,8 @@ export default function PinWallet({
     });
     const data = await response.json();
 
-    // Error code 155106 means user already exists -- proceed to get token
-    if (data.code === 155106) {
+    // Error code 155101 means user already exists -- proceed to get token
+    if (data.code === 155101) {
       setStatus("User already exists. Get user token to continue.");
       return;
     }
@@ -186,7 +165,7 @@ export default function PinWallet({
     const data = await response.json();
 
     if (data.code === 155106) {
-      // User already has wallets -- load them via listUserWallets
+      // User already has wallets -- load them via listWallets
       return;
     }
 
@@ -210,7 +189,7 @@ export default function PinWallet({
       }
       console.log("Challenge result:", result);
       setChallengeId(null);
-      // Wait for Circle to index, then call listUserWallets to fetch the new wallet
+      // Wait for Circle to index, then call listWallets to fetch the new wallet
     });
   };
 
@@ -218,13 +197,7 @@ export default function PinWallet({
 }
 ```
 
-## Error Handling
-
-| Error Code | Meaning | Action |
-| --- | --- | --- |
-| 155106 | User already initialized | Fetch existing wallets instead of creating |
-| 155104 | Invalid user token | Token expired -- call `createUserToken` again |
-| 155101 | User not found | User needs to be created first |
+Error codes and recovery actions: see Error Handling in `SKILL.md`.
 
 ## Reference Links
 

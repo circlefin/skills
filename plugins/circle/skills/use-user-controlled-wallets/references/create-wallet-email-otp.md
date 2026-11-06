@@ -1,39 +1,22 @@
 # Creating User-Controlled Wallets with Email OTP
 
-## Overview
+## Flow
 
-Complete flow for creating user-controlled wallets using email one-time passcode (OTP) authentication. Requires both a frontend (Web SDK) and backend (Node.js SDK) component.
+Each step maps to one frontend handler:
 
-## User Flow
-
-1. **Enter email and click "Send OTP"**: The Web SDK generates a `deviceId` identifying the user's browser. Your backend calls Circle's email token endpoint with `deviceId` and email. Circle sends an OTP to the user's email and returns `deviceToken`, `deviceEncryptionKey`, and `otpToken`.
-
-2. **Click "Verify OTP"**: The Web SDK opens Circle's hosted OTP verification UI. The user enters the code. Upon success, the SDK invokes the login callback with `userToken` and `encryptionKey`.
-
-3. **Click "Initialize user"**: Your backend initializes the user using the `userToken`. Circle returns a `challengeId` to create a wallet. Error code 155106 means the user already has wallets -- load them instead.
-
-4. **Click "Create wallet"**: The Web SDK executes the challenge using the `challengeId`. The user approves, and Circle creates the wallet.
+1. `handleRequestOtp` -- The Web SDK provides a `deviceId` identifying the browser. The backend calls `createDeviceTokenForEmailLogin` with `deviceId` and email; Circle emails an OTP and returns `deviceToken`, `deviceEncryptionKey`, and `otpToken`, which the frontend passes to `sdk.updateConfigs`.
+2. `handleVerifyOtp` -- `sdk.verifyOtp()` opens Circle's hosted OTP UI. On success, the SDK login callback receives `userToken` and `encryptionKey`.
+3. `handleInitializeUser` -- The backend calls `createUserPinWithWallets` with `userToken` and gets a `challengeId`. Error 155106 means the user already has wallets -- load them with `listWallets` instead.
+4. `handleCreateWallet` -- `sdk.execute(challengeId)`; the user approves and Circle creates the wallet.
 
 ## Prerequisites
 
-1. **Email Provider (Mailtrap for testing)**:
-   - Create a Mailtrap account
-   - Go to Email Sandbox -> Transactional Sandboxes
-   - Copy SMTP credentials (Host, Port, Username, Password)
-
-2. **Circle Developer Console**:
-   - Get API key from Project Settings
-   - Navigate to Wallets -> User Controlled -> Configurator
-   - Under Authentication Methods -> Email OTP, configure your SMTP settings
-   - Copy the App ID from the configurator
-
-Circle supports any SMTP-compatible email provider. For testing, Mailtrap is recommended. For production, use SendGrid, Mailgun, or AWS SES.
+1. **SMTP provider**: Circle accepts any SMTP-compatible provider. For testing, use Mailtrap (Email Sandbox -> Transactional Sandboxes -> copy Host, Port, Username, Password). For production, use SendGrid, Mailgun, or AWS SES.
+2. **Circle Developer Console**: Get the API key from Project Settings. In Wallets -> User Controlled -> Configurator, configure SMTP under Authentication Methods -> Email OTP, then copy the App ID.
 
 ## Backend SDK Methods
 
 ### Step 1: Request email OTP
-
-Circle sends a one-time code to the user's email address.
 
 ```ts
 const response = await circleClient.createDeviceTokenForEmailLogin({
@@ -44,8 +27,6 @@ const response = await circleClient.createDeviceTokenForEmailLogin({
 ```
 
 ### Step 2: Initialize user and create wallet
-
-Returns a `challengeId` if the user needs to create a wallet. Error code 155106 means user already exists -- fetch wallets instead.
 
 ```ts
 const response = await circleClient.createUserPinWithWallets({
@@ -75,13 +56,7 @@ const response = await circleClient.getWalletTokenBalance({
 
 ## Frontend Component
 
-The SDK must be initialized with a login callback to handle OTP verification results.
-
-The frontend implements four button handlers mapping to the User Flow steps:
-1. `handleRequestOtp` -- Send OTP to email
-2. `handleVerifyOtp` -- Verify OTP code
-3. `handleInitializeUser` -- Initialize user (get challenge)
-4. `handleCreateWallet` -- Create wallet (execute challenge)
+Initialize the SDK with a login callback to receive the OTP verification result.
 
 ```tsx
 import { useState, useEffect, useRef } from "react";
@@ -201,7 +176,7 @@ export default function EmailOtpWallet({
     const data = await response.json();
 
     if (data.code === 155106) {
-      // User already has wallets -- load them via listUserWallets
+      // User already has wallets -- load them via listWallets
       return;
     }
 
@@ -224,7 +199,7 @@ export default function EmailOtpWallet({
         return;
       }
       setChallengeId(null);
-      // Wait for Circle to index, then call listUserWallets to fetch the new wallet
+      // Wait for Circle to index, then call listWallets to fetch the new wallet
     });
   };
 
@@ -232,18 +207,7 @@ export default function EmailOtpWallet({
 }
 ```
 
-## Error Handling
-
-| Error Code | Meaning | Action |
-| --- | --- | --- |
-| 155106 | User already initialized | Fetch existing wallets instead of creating |
-| 155104 | Invalid user token | Re-authenticate user via OTP |
-| 155101 | Invalid device token | Request new OTP |
-| 155130 | OTP token expired | Request new OTP |
-| 155131 | OTP token invalid | Request new OTP |
-| 155133 | OTP value invalid | User should re-enter code |
-| 155134 | OTP value not matched | User should re-enter code |
-| 155146 | OTP invalid after 3 attempts | Request new OTP (locked out) |
+Error codes (including the OTP codes) and recovery actions: see Error Handling in `SKILL.md`.
 
 ## Reference Links
 

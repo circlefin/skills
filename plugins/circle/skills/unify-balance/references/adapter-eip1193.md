@@ -1,39 +1,33 @@
 # EIP-1193 Provider Adapter (Browser Wallets)
 
-This shows how to use App Kit with EIP-1193 providers using wagmi (ConnectKit, RainbowKit, etc.) as an example. Includes examples for both App Kit and standalone Unified Balance Kit. Any EIP-1193 provider works — the wallet connection library only supplies the provider; the same `@circle-fin/adapter-viem-v2` adapter used by the bridge skill drives the unified balance operations.
-
-> **Note:** The wagmi examples below target `wagmi@^3`.
-
-Use App Kit `>=1.11.0` or Unified Balance Kit `>=1.3.1` with current
-adapters. Do not add Node or `Buffer` polyfills. Keep private keys, Circle
-credentials, and optional App Kit credentials out of browser code.
+Unified balance from any EIP-1193 browser wallet, shown with wagmi (`wagmi@^3`; ConnectKit, RainbowKit, etc.), for App Kit and standalone Unified Balance Kit. The wallet library only supplies the provider; `@circle-fin/adapter-viem-v2` drives the operations. Use the browser-safe kit versions in SKILL.md and add no Node or `Buffer` polyfills.
 
 ## Setup
 
 ```bash
 # App Kit (recommended)
-npm install @circle-fin/app-kit @circle-fin/adapter-viem-v2
+npm install @circle-fin/app-kit @circle-fin/adapter-viem-v2 viem
 
 # Unified Balance Kit (standalone)
-npm install @circle-fin/unified-balance-kit @circle-fin/adapter-viem-v2
+npm install @circle-fin/unified-balance-kit @circle-fin/adapter-viem-v2 viem
 ```
 
 ## Using App Kit
 
-Get the provider from the connector and switch to the chain that signs the transaction (the source chain for `deposit`, the allocation chain for `spend`) before calling the operation. `getBalances` is read-only and needs no chain switch. `createViemAdapterFromProvider` is async — always `await` it.
+Switch the wallet to the chain that signs (the source chain for `deposit`, the allocation chain for `spend`), then build the adapter from the connector's provider. `getBalances` is read-only and needs no switch. `createViemAdapterFromProvider` is async -- always `await` it.
 
-For the two `spend` destination (`to`) shapes, see the Spend / Forwarding Service notes in `SKILL.md`. The examples below use the Forwarding Service (`useForwarder: true`) — the natural fit for browser wallets, since the user signs once (the burn on the source chain) and never has to switch the wallet to the destination chain. To submit the mint from the user's own destination wallet instead, build a destination adapter the same way (`await getAdapter(destinationChainId)`) and pass it as `adapter`.
+The examples spend through the Forwarding Service (`useForwarder: true`): the user signs once, on the source chain, and never switches to the destination. To mint from the user's own destination wallet instead, build a destination adapter the same way (`await getAdapter(destinationChainId)`) and pass it as `to.adapter` (see Spend in SKILL.md).
 
 ```tsx
-import { useAccount, useChainId, useSwitchChain } from "wagmi";
+import { useConnection, useChainId, useSwitchChain } from "wagmi";
 import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
-import { AppKit } from "@circle-fin/app-kit";
+import { AppKit, type UnifiedBalanceChainIdentifier } from "@circle-fin/app-kit";
 import type { EIP1193Provider } from "viem";
 
 const appKit = new AppKit();
 
 function UnifiedBalanceComponent() {
-  const { connector } = useAccount();
+  const { connector } = useConnection();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
 
@@ -46,7 +40,10 @@ function UnifiedBalanceComponent() {
     return await createViemAdapterFromProvider({ provider });
   };
 
-  const handleDeposit = async (sourceChainId: number, sourceChain: string) => {
+  const handleDeposit = async (
+    sourceChainId: number,
+    sourceChain: UnifiedBalanceChainIdentifier,
+  ) => {
     const adapter = await getAdapter(sourceChainId);
 
     const result = await appKit.unifiedBalance.deposit({
@@ -57,8 +54,8 @@ function UnifiedBalanceComponent() {
 
   const handleSpend = async (
     sourceChainId: number,
-    sourceChain: string,
-    destinationChain: string,
+    sourceChain: UnifiedBalanceChainIdentifier,
+    destinationChain: UnifiedBalanceChainIdentifier,
     recipientAddress: string,
   ) => {
     const adapter = await getAdapter(sourceChainId);
@@ -88,18 +85,21 @@ function UnifiedBalanceComponent() {
 
 ## Using Unified Balance Kit
 
-The standalone kit exposes the same operations directly on the instance (`kit.deposit`, `kit.spend`, `kit.getBalances`) instead of under `kit.unifiedBalance.*`.
+Same operations directly on the instance (`kit.deposit`, `kit.spend`, `kit.getBalances`) instead of under `kit.unifiedBalance.*`.
 
 ```tsx
-import { useAccount, useChainId, useSwitchChain } from "wagmi";
+import { useConnection, useChainId, useSwitchChain } from "wagmi";
 import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
-import { UnifiedBalanceKit } from "@circle-fin/unified-balance-kit";
+import {
+  UnifiedBalanceKit,
+  type UnifiedBalanceChainIdentifier,
+} from "@circle-fin/unified-balance-kit";
 import type { EIP1193Provider } from "viem";
 
 const kit = new UnifiedBalanceKit();
 
 function UnifiedBalanceComponent() {
-  const { connector } = useAccount();
+  const { connector } = useConnection();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
 
@@ -112,7 +112,10 @@ function UnifiedBalanceComponent() {
     return await createViemAdapterFromProvider({ provider });
   };
 
-  const handleDeposit = async (sourceChainId: number, sourceChain: string) => {
+  const handleDeposit = async (
+    sourceChainId: number,
+    sourceChain: UnifiedBalanceChainIdentifier,
+  ) => {
     const adapter = await getAdapter(sourceChainId);
 
     const result = await kit.deposit({
@@ -123,8 +126,8 @@ function UnifiedBalanceComponent() {
 
   const handleSpend = async (
     sourceChainId: number,
-    sourceChain: string,
-    destinationChain: string,
+    sourceChain: UnifiedBalanceChainIdentifier,
+    destinationChain: UnifiedBalanceChainIdentifier,
     recipientAddress: string,
   ) => {
     const adapter = await getAdapter(sourceChainId);

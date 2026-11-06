@@ -1,7 +1,5 @@
 # Express Integration (Circle Gateway Nanopayments)
 
-Reference code for the `accept-agent-payments` skill: adding the Circle Gateway payment gate to an existing Express / Node API. See SKILL.md for the full workflow, command safety, network and funds safety, and the non-Node proxy pattern.
-
 ## Install dependencies
 
 ```bash
@@ -19,6 +17,7 @@ app.use(express.json());
 
 const gateway = createGatewayMiddleware({
   sellerAddress: process.env.SELLER_ADDRESS!,
+  facilitatorUrl: "https://gateway-api-testnet.circle.com",
 });
 
 app.post("/summarize", gateway.require("$0.01"), async (req, res) => {
@@ -26,4 +25,4 @@ app.post("/summarize", gateway.require("$0.01"), async (req, res) => {
 });
 ```
 
-Use environment variables for addresses and provider config. Never commit private keys, API keys, OTPs, or wallet session material.
+Omitting `facilitatorUrl` selects **mainnet** (`https://gateway-api.circle.com`), which verifies and settles real USDC. Keep the testnet URL above for first integration; switch to the mainnet URL (or omit the field) only after the user approves mainnet.

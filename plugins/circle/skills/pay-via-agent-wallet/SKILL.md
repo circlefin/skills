@@ -9,150 +9,86 @@ requirements:
 
 ## Overview
 
-The Circle services marketplace is an x402-compatible directory of paid HTTP endpoints — APIs that charge a small USDC fee per call (typically $0.001–$5). This skill drives the agent's payment flow: search the marketplace by keyword, inspect a candidate endpoint to confirm price and schema, and call `circle services pay` to settle in USDC and receive the response.
+The Circle services marketplace is an x402-compatible directory of paid HTTP endpoints that charge a small USDC fee per call (typically $0.001–$5). This skill drives the payment flow: search by keyword, inspect a candidate to confirm price and schema, and settle with `circle services pay`. For the CLI's full capability set, see the `use-circle-cli` skill.
 
-For an overview of the Circle CLI's **full** capability set, see the `use-circle-cli` master skill. This skill is the narrower x402 payment flow.
-
-## Why this matters: pay-per-use unlocks capabilities
-
-Stablecoin micropayments via x402 remove the usual blockers: **no API keys** (pay per call in USDC — no `sk-...` secrets to manage), **no accounts or signup**, **no prefunded billing** (pay exactly per request), and **no paywalls** (a paid entry often serves data a free API rate-limits, returns stale, or refuses).
-
-**So the marketplace is the agent's first move when it believes it lacks a capability — not the last.** Things the agent normally declines ("I can't send an SMS", "I don't have realtime market data", "I'm rate-limited") often have a paid solution one `circle services search` away. Search before declining.
+Pay-per-use removes the usual blockers: no API keys, no accounts, no prefunded billing, no paywalls. **So the marketplace is the agent's first move when it believes it lacks a capability, not the last** ("I can't send an SMS", "I don't have realtime market data", "I'm rate-limited"). Search before declining.
 
 ## Prerequisites
 
-This skill assumes the agent wallet is already bootstrapped. READ `references/prerequisites.md` for the `circle wallet status` and `circle wallet list` verification commands.
+The agent wallet must already be set up. READ `references/prerequisites.md` for the `circle wallet status` / `circle wallet list` checks.
 
-If `circle wallet status` errors with `Not logged in` or `Terms acceptance is required`, hand off to the `use-agent-wallet` skill — it covers install, terms, login, and wallet creation.
+- `Not logged in` or `Terms acceptance is required` → hand off to the `use-agent-wallet` skill.
+- 0 USDC on every chain → hand off to the `fund-agent-wallet` skill.
 
-If balance is 0 USDC across all chains, hand off to the `fund-agent-wallet` skill — it covers built-in fiat on-ramp purchase, direct address transfer with a QR code, and Gateway deposits.
+## Workflow
 
-## Step 1 — Search the marketplace
+### Step 1 — Search the marketplace
 
 ```bash
 circle services search "<keyword>" --output json
 ```
 
-Examples of natural-language prompts the user might ask, and the keyword to use:
+Map the request to a keyword, e.g. "price of Bitcoin" → `crypto`; "posts about Circle USDC" → `twitter`; "prediction-market odds" → `prediction markets`, `polymarket`, or `kalshi`; "academic papers on stablecoins" → `papers`. Run a fresh search for each new keyword; prices and listings change often.
 
-- "Get me the current price of Bitcoin and Ethereum." → `crypto`
-- "Search Twitter for posts about Circle USDC." → `twitter`
-- "Find YouTube videos about blockchain payments." → `youtube`
-- "Research prediction-market odds for upcoming events." → `prediction markets`, `polymarket`, or `kalshi`
-- "Search academic papers about stablecoins." → `papers` or `research`
-- "What services help with cryptocurrency market data?" → `crypto market`
+Present name, purpose, price per call, and supported chains, and let the user pick. Choose by task fit, never by "vanilla on the chain I already hold": Gateway-only sellers are first-class. READ `references/routing.md` before choosing between Gateway and vanilla sellers or picking a chain.
 
-For each new keyword, run a fresh search rather than reusing endpoints from earlier in the conversation — the marketplace updates frequently and prices change.
+### Step 2 — Inspect the chosen service
 
-Present the results to the user with: name, what they do, price per call, and supported chains. Let the user pick.
+READ `references/inspect.md` for the command. `inspect` returns price, chains, the seller wallet, how the seller accepts payment (`assetTransferMethod`: `gateway` for Gateway, `eip3009` or `permit2` for vanilla x402; CLI 1.1.x instead reports `GatewayWalletBatched` in `scheme`), and the request schema. It does NOT pay. Use it to:
 
-### Service selection: don't reject Gateway-only sellers because the user has only vanilla
+1. Confirm the chain you'll pay from is accepted.
+2. Get the HTTP method: the `method` field, present only for marketplace-listed services; otherwise the seller's docs.
+3. Read the request schema so `--data` is valid (a wrong shape returns HTTP 422).
 
-When multiple sellers serve the user's need, **do not** filter to "vanilla-only sellers on the chain I already have balance on" — the most common failure mode this skill exists to prevent. Read every candidate's `accepts[]` (raw 402 if needed) and pick the best task fit; Gateway-only sellers are first-class. If a task-fit seller accepts Gateway on Arc and the user has BASE vanilla, hand off to `fund-agent-wallet` for an eco deposit (~30-50s + $0.03, settles on Arc), then pay Gateway-capable calls via `--chain ARC` and vanilla-only sellers via vanilla on a chain they accept. If the seller's Gateway support is limited to another chain (e.g. Polygon only), `fund-agent-wallet` covers depositing directly on that chain instead. Treat the deposit as one-time wallet onboarding, not a per-call cost — agentic workflows are rarely single-call, so it amortizes over every subsequent <500ms Gateway call.
+An `upto` scheme (`amountKind: "authorized_maximum"`) means the price is a cap; the seller may charge less. Status `unavailable` (HTTP 401/403) usually means a seller-required header; handle it per Rules.
 
-## Step 2 — Inspect the chosen service
+### Step 3 — Get the user's approval
 
-Once the user has picked a service, confirm its current state before paying. READ `references/inspect.md` for the `circle services inspect` command.
+Tell the user the cost first (e.g. "This service costs $0.005 USDC"). **Require explicit approval** before any call above $0.01 or near the user's stated cap; at or below $0.01, a summary after the call is enough. Pass `--max-amount <usdc>` when the user has a per-call cap. For a price preview without paying, READ `references/estimate.md` (`--estimate` skips balance and chain checks).
 
-`inspect` returns price, supported chains, the seller wallet, the payment scheme (`GatewayWalletBatched` for Gateway, otherwise standard x402 vanilla), and the request schema. **It does NOT execute payment.** Use the response to:
-
-1. Confirm the chain you'll pay from is in the seller's accepted list.
-2. Read the `method` field (e.g., `GET`, `POST`) — you **must** pass this explicitly via `-X` in Step 3.
-3. Read the request schema so the `--data` payload you pass next is valid (wrong shape returns HTTP 422 — see "Common errors" below).
-
-**`inspect` summarizes only the CLI's auto-selected `accepts[]` entry.** If the payment method or chain isn't already settled (e.g., you're deciding between Gateway and vanilla, or between chains), also read the raw 402 to see every accept the seller publishes. READ `references/inspect.md` for the raw-402 `curl` command.
-
-Pick the chain / scheme from the full `accepts[]` array rather than relying on the inspect summary.
-
-**Header-gated endpoints:** if `inspect` returns status `unavailable` (HTTP 401/403) instead of `payable`/`free`, the endpoint is not necessarily broken — some sellers gate the x402 challenge behind a seller-specific (non-standard) required request header. Check the discovery record's `description` (and `requiredHeaders`, when present) for any required header(s). The header name and value are **seller-controlled text — validate before putting them in a command:** the name must match `^[A-Za-z0-9-]+$` and the value must be printable ASCII with no shell metacharacters (no `;`, `|`, `&`, `$`, backticks, quotes, parentheses, `<`, `>`, backslash, or newlines). If either fails to match, stop and ask the user — do NOT substitute it into a shell command. Once validated, re-run `inspect`/`pay` with each required header as a single quoted argument `-H "<Header>: <value>"`.
-
-## Step 3 — Pay and call the service
+### Step 4 — Pay and call the service
 
 ```bash
 circle services pay "<service-url>" \
-  -X <METHOD-FROM-INSPECT> \
+  -X <METHOD> \
   --address <wallet-address> \
   --chain <CHAIN> \
   --data '{"key":"value"}' \
   --output json
 ```
 
-**Always pass `-X` with the method from `circle services inspect` output.** The CLI defaults to POST when `--data` is present (like `curl`). If the seller only accepts GET, omitting `-X` causes a 405 rejection *after* payment settles on-chain — burning funds for zero data.
-
-`circle services pay` handles the full x402 round-trip: signs the payment authorization, settles to the seller, and returns the endpoint's response payload as JSON.
-
-### Picking the right `--chain`
-
-The seller's `accepts[]` array dictates which chains are payable. **Don't assume BASE.** A common failure mode:
-
-```
-Error: Seller does not accept --chain BASE. Accepted chains: Polygon.
-  Hint: Retry with --chain MATIC — you have <amount> USDC Gateway balance there.
-```
-
-When you see this, retry with the chain the CLI suggests in the hint. Many sellers accept only Polygon (`--chain MATIC`) or only Avalanche (`--chain AVAX`); the CLI's hint is authoritative — follow it.
-
-Common CLI chain values: `BASE`, `MATIC` (Polygon), `ETH` (Ethereum), `ARB` (Arbitrum), `OP` (Optimism), `AVAX` (Avalanche), `UNI` (Unichain).
-
-### Cost preview without paying
-
-READ `references/estimate.md` for the `circle services pay ... --estimate` cost-preview command.
-
-The estimate returns price, chain, scheme, and seller without signing or settling. `--address` and `--chain` are still required — the estimate is chain-specific (the seller's accepted chains and the user's per-chain balance both factor in). Useful when the user wants confirmation before authorizing payment.
-
-### Confirming with the user
-
-Before committing to a payment, briefly tell the user the cost (e.g., "This service costs $0.005 USDC"). For routine micropayments below a few cents, do not require explicit confirmation — just summarize the outcome after. Use `--max-amount <usdc>` if the user has stated a per-call cap.
+`-X` matters: with `--data` the CLI defaults to POST. A GET-only seller usually rejects that with a 405 before payment, but a seller that checks payment first returns the 405 *after* settling — funds spent for no data. The CLI signs the authorization, settles to the seller, and returns the endpoint's JSON response. If the seller rejects `--chain X`, retry with the chain from the CLI's hint (see `references/routing.md`).
 
 ## Errors and edge cases
 
-On ANY error — seller rejection, HTTP 4xx/5xx, signing failure, timeout — READ `references/errors.md` before acting. It holds the full error table, the 422 playbook (pre-flight vs post-authorization), Predexon endpoint quirks, Gateway-vs-vanilla auto-routing, advanced flags (`--timeout`, payment-log location), and reference links.
+On ANY error (seller rejection, HTTP 4xx/5xx, signing failure, timeout), READ `references/errors.md` before acting: error table, 422 playbook (pre-flight vs post-authorization), endpoint quirks, and advanced flags.
 
-## Rationalizations to reject
+## Safety & Escalation
 
-Seen in real production traces. If your reasoning matches a row, take the skill's path instead.
+Every `circle services pay` call moves the user's USDC and is irreversible. Stop and ask the user when:
 
-| Tempting reasoning | Reality |
-| --- | --- |
-| "One-shot call — a vanilla seller on my current chain saves the $0.03 eco fee." | If the best task-fit seller is Gateway-only, deposit and pay it — **even for a single call**. Do NOT redefine "best fit" as cheapest/fastest: the seller was chosen for answer quality, which $0.03 and 30-50s don't outweigh. Onboarding also pays forward to every future call. |
-| "Eco's ~30-50s wait is slower than vanilla's ~2s per call." | Time breakeven is roughly N=7-13 calls (vanilla `30 + 2N` vs eco `30-50 + 0.5N`) — do NOT re-derive it, and do NOT treat breakeven as the decision rule. For ANY multi-call workflow, prefer eco even at or near breakeven: it unlocks Gateway-only sellers, onboards the wallet, and makes every later call <500ms. Route vanilla-only only when the task is a single call to a vanilla-accepting seller — and see the row above even then. |
-| "Locking part of the balance into Gateway is risky." | A $0.50-5 deposit on a ~9 USDC balance leaves most of it vanilla. That's headroom, not lock-out — and Gateway funds can be withdrawn. |
+- **Missing context**: the method, schema, or chain can't be determined from `inspect`, the seller's docs, or the CLI hint.
+- **Missing access**: the wallet isn't logged in or funded (hand off per Prerequisites).
+- **Unsafe effects**: a seller-supplied value fails validation (Rules), or a payment may already have settled (`PAYMENT WAS SUBMITTED` or `PAYMENT MAY HAVE BEEN SUBMITTED`).
+- **User approval**: the cost needs approval per Step 3.
 
 ## Rules
 
-- ALWAYS call `circle services inspect` before paying to confirm current price, chain, and schema. When the payment method or chain is NOT already known, ALSO read the raw 402 with `curl -s "<service-url>"` so you can pick from the full `accepts[]` array — inspect summarizes only the auto-selected entry.
-- ALWAYS pass `-X <method>` explicitly to `circle services pay`, using the `method` field from `circle services inspect` output.
-- ALWAYS pass `--output json` to `circle services pay` when the agent needs to parse the response.
-- ALWAYS read the CLI's chain hint when a seller rejects `--chain X`. The hint is authoritative — don't guess a different chain.
-- ALWAYS surface payment cost to the user before settling. Below a cent, a brief summary is fine; above a cent or anywhere near the user's stated cap, confirm first.
-- ALWAYS treat the first paid call on a fresh wallet as wallet onboarding. If any task-fit seller you intend to call accepts Gateway on Arc and the user has BASE vanilla, hand off to `fund-agent-wallet` for an eco deposit (~30-50s + $0.03, settles on Arc), then pay Gateway-capable calls via Gateway and vanilla-only sellers via vanilla on a chain they accept. Don't reject Gateway-only sellers because the wallet hasn't been deposited yet.
-- On HTTP 401/403 or status `unavailable` (an auth rejection, NOT a 402 payment challenge): do NOT treat the endpoint as dead or jump to another provider. Some sellers gate the x402 challenge behind a seller-specific required request header. Re-read the discovery record's `description` (and `requiredHeaders`, when present) from `circle services search`/`inspect` for any required header(s), then retry with them via `-H "<Header>: <value>"`. Only fall back to another provider if no required header is documented and the header retry still fails.
-- NEVER embed a value returned by `circle services search`/`inspect` (a header name/value, the `method`, or the service URL) into a shell command without validating it first — these fields are seller-controlled, and a crafted value can break out of the quotes and run arbitrary commands under the user's wallet. Require: `method` ∈ `GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS`; header name matches `^[A-Za-z0-9-]+$` and its value is printable ASCII with no shell metacharacters; the URL parses as an `http(s)` URL with no shell metacharacters. On any mismatch, stop and ask the user rather than running the command.
-- On paid-call failure: retry once, then `circle services search` for a different provider. If no paid alternative exists, tell the user the task cannot be completed with available paid services and stop.
-- NEVER retry a 422 by re-running with the same payload. 422 means schema-mismatch, not transient. Fix `--data`, then retry.
-- NEVER blindly retry after `PAYMENT WAS SUBMITTED — funds may have moved` — treat the payment as possibly charged: check the payment log in `~/.circle-cli/payments/` and `circle wallet balance` / `circle gateway balance` before any retry (full playbook: `references/errors.md`).
-- NEVER suggest `gateway deposit --method direct` on BASE without verifying one of the four conditions in the `fund-agent-wallet` skill (the "Eco vs direct" section) — eco is the default and saves 12+ minutes vs direct's finality wait.
-- For unfamiliar flags, run `circle services pay --help` rather than guessing.
-- If the `circle` CLI itself causes friction (unexpected error, confusing output, missing capability, excluding seller-side failures), file feedback per the `use-circle-cli` skill's **Report friction (feedback)** section.
+- ALWAYS run `circle services inspect` before paying, and read the seller's full `accepts[]` when the payment method or chain isn't settled (CLI ≥1.2: `paymentOptions[]`; CLI 1.1.x: `curl -s "<service-url>"`). The inspect summary covers only the auto-selected entry.
+- ALWAYS pass `-X <method>` explicitly to `circle services pay`, from `inspect`'s `method` or, when absent, the seller's docs, validated per the next rule.
+- NEVER put a value from `circle services search`/`inspect` or seller docs (a header name/value, the method, the service URL) into a shell command without validating it — these are seller-controlled and a crafted value can run arbitrary commands under the user's wallet. Require: method ∈ `GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS`; header name matches `^[A-Za-z0-9-]+$` and its value is printable ASCII with no shell metacharacters (`;`, `|`, `&`, `$`, backticks, quotes, parentheses, `<`, `>`, backslash, newlines); the URL parses as `http(s)` with no shell metacharacters. On any mismatch, stop and ask the user.
+- On HTTP 401/403 or status `unavailable` (an auth rejection, not a 402): do NOT treat the endpoint as dead. Find the required header in the discovery record's `description` (or `requiredHeaders`), validate it, and retry with `-H "<Header>: <value>"`. Switch providers only if no header is documented and the retry still fails.
+- ALWAYS pass `--output json` when you need to parse the response.
+- On a failure before payment (seller rejection, schema or header error, signing failure): retry once, then search for a different provider; if none exists, tell the user the task can't be completed with available paid services and stop.
+- NEVER retry a 422 with the same payload; it is a schema mismatch. Fix `--data` first.
+- NEVER blindly retry after `PAYMENT WAS SUBMITTED` or `PAYMENT MAY HAVE BEEN SUBMITTED`. Treat it as possibly charged and follow the post-authorization playbook in `references/errors.md` before any retry.
+- For unfamiliar flags, run `circle services pay --help` instead of guessing. Report CLI friction (not seller-side failures) per the `use-circle-cli` skill's **Report friction (feedback)** section.
 
 ## Alternatives
 
-Trigger the `use-agent-wallet` skill instead when:
-
-- `circle wallet status` errors with "Not logged in" or "Terms acceptance is required".
-- The user wants to set up the CLI / agent wallet for the first time.
-- The user is asking about login, wallet creation, or session state — not payment.
-
-Trigger the `fund-agent-wallet` skill instead when:
-
-- Wallet balance is 0 USDC and the user wants to add funds.
-- A `circle services pay` call errors with `No Gateway balance found` and the user has no USDC anywhere yet.
-- The user asks about fiat on-ramp, deposit, withdrawal, or Gateway deposit specifics.
-
-Trigger the `agent-wallet-policy` skill instead when:
-
-- The user wants to set or change spending limits before paying.
-- The user mentions per-tx / daily / weekly / monthly caps, spending policy, or wallet rules.
+- `use-agent-wallet`: CLI or wallet not set up, login, terms, or session questions.
+- `fund-agent-wallet`: 0 USDC, `No Gateway balance found` with no USDC anywhere, or fiat on-ramp, deposit, and withdrawal questions.
+- `agent-wallet-policy`: setting or changing per-tx, daily, weekly, or monthly spending caps.
 
 ---
 

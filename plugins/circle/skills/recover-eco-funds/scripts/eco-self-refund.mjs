@@ -8,8 +8,12 @@ import {
   parseArgs,
   required,
   requireAddress,
+  requireChainCode,
+  requireChainId,
   requireCircleChainId,
   requireHex,
+  requireRpcUrl,
+  requireSafePath,
   resolveAgentWallet,
   rpc,
   rpcOrigin,
@@ -158,12 +162,12 @@ async function main() {
     return;
   }
 
-  const circleCliRepo = required(args, "circle-cli-repo");
-  const chain = required(args, "chain").toUpperCase();
-  const eventRpcUrl = required(args, "event-rpc-url");
-  const refundRpcUrl = required(args, "refund-rpc-url");
-  const eventChainId = BigInt(required(args, "event-chain-id"));
-  const refundChainId = BigInt(required(args, "refund-chain-id"));
+  const circleCliRepo = requireSafePath(required(args, "circle-cli-repo"), "--circle-cli-repo");
+  const chain = requireChainCode(required(args, "chain").toUpperCase(), "--chain");
+  const eventRpcUrl = requireRpcUrl(required(args, "event-rpc-url"), "--event-rpc-url");
+  const refundRpcUrl = requireRpcUrl(required(args, "refund-rpc-url"), "--refund-rpc-url");
+  const eventChainId = requireChainId(required(args, "event-chain-id"), "--event-chain-id");
+  const refundChainId = requireChainId(required(args, "refund-chain-id"), "--refund-chain-id");
   const sca = requireAddress(required(args, "sca"), "--sca");
   const eventPortal = requireAddress(
     required(args, "event-portal"),
@@ -181,7 +185,9 @@ async function main() {
     "--intent-hash",
   );
   const evidenceDir =
-    typeof args["evidence-dir"] === "string" ? args["evidence-dir"] : undefined;
+    typeof args["evidence-dir"] === "string"
+      ? requireSafePath(args["evidence-dir"], "--evidence-dir")
+      : undefined;
   if (args.submit && !evidenceDir) {
     throw new Error(
       "--evidence-dir is required with --submit so the idempotency key is persisted before broadcast.",

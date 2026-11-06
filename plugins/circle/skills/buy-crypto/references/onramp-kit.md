@@ -170,5 +170,5 @@ function handleClick() {
 1. The browser calls `/api/onramp/sessions` (authorized) and gets a session.
 2. `mountIframe` / `openWindow` shows the widget (sandbox or production, per your env values).
 3. Sandbox needs no KYB. In production, the flow offers bank transfer without KYB; with KYB approved and `referrerDomain` set to the KYB domain, debit card / Apple Pay / Google Pay also appear.
-4. Callbacks fire as the user moves through the flow; `widget.on('*', …)` receives every event. The discriminator is `.event`, not `.type`.
+4. Callbacks fire as the user moves through the flow; `widget.on('*', …)` receives every event. The discriminator is `.event`, not `.type`. Sandbox never emits `DEPOSIT_SETTLED` (see `references/environments.md`).
 5. **Treat browser events as UI hints only.** They're `postMessage` events and there are no onramp webhooks; if you need an authoritative result, verify onchain as described in `references/app-kit.md` → Confirming a purchase.

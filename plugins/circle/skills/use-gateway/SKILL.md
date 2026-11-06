@@ -12,13 +12,11 @@ Circle Gateway provides a unified USDC balance across multiple blockchains with 
 
 ## Prerequisites / Setup
 
-Gateway is a contract-level integration -- there is no SDK to install. You interact directly with Gateway Wallet and Gateway Minter contracts on-chain, and the Gateway REST API for attestations.
+This skill integrates at the contract level: call the Gateway Wallet and Gateway Minter contracts directly and use the Gateway REST API for attestations. For the `@circle-fin/unified-balance-kit` SDK that wraps these flows, use the `unify-balance` skill.
 
 ### Chain Configuration
 
-Do not load a separate config file by default. Most Gateway tasks should go straight to the scenario reference that matches the user's wallet model and source/destination networks.
-
-Use the scenario reference first and only do additional verification when you need to confirm:
+Go straight to the matching scenario reference. Verify these only when you need to confirm them:
 
 - Gateway REST base URL
   - testnet: `https://gateway-api-testnet.circle.com/v1/`
@@ -131,7 +129,7 @@ Think of it like a multi-currency bank account: you see one total, but withdrawa
 - `references/evm-to-evm.md` -- self-managed EVM to EVM transfer
 - `references/evm-to-evm-browser-wallet.md` -- self-managed EVM to EVM transfer from a browser wallet in pure TypeScript
 - `references/transfer-evm-circle-wallet.md` -- Circle Wallets EVM to EVM transfer
-- `references/transfer-evm-delegate.md` -- SCA depositor on EVM using an EOA delegate for burn intent signing
+- `references/transfer-evm-delegate.md` -- SCA depositor on EVM whose burn intents an EOA delegate signs (see SCA source depositors)
 - `references/evm-to-solana.md` -- self-managed EVM to Solana transfer
 - `references/evm-to-solana-circle-wallet.md` -- Circle Wallets EVM to Solana transfer
 ### Transfers from Solana
@@ -142,14 +140,16 @@ Think of it like a multi-currency bank account: you see one total, but withdrawa
 ### Balance queries
 - `references/query-balance.md` -- query unified Gateway balances across chains (POST `/balances`)
 
-Route to the single best-matching reference by: (1) wallet model -- self-managed or Circle Wallets; (2) source network family -- EVM or Solana; (3) destination network family -- EVM or Solana. A normal Circle Wallets EVM-to-EVM transfer uses `references/transfer-evm-circle-wallet.md`.
+### Routing
 
-The delegate flow is a NARROW exception -- an SCA source *depositor* that signs burn intents via a separate EOA delegate:
+Route to the single best-matching reference by: (1) wallet model -- self-managed or Circle Wallets; (2) source network family -- EVM or Solana; (3) destination network family -- EVM or Solana. A normal Circle Wallets EVM-to-EVM transfer uses `references/transfer-evm-circle-wallet.md`. Adapt the matched reference; do not scaffold a parallel implementation.
 
-- Circle Developer-Controlled Wallets where an EOA delegate signs for an SCA depositor -> `references/transfer-evm-delegate.md`. Do NOT use the delegate ref for an ordinary Circle Wallets transfer.
-- Self-managed SCA -> no exact reference matches. Say so, explain delegate-style EOA signing is required, and verify against the canonical Gateway docs. Do NOT reuse `transfer-evm-delegate.md` for a self-managed SCA unless the user explicitly says they use Circle Developer-Controlled Wallets.
+### SCA source depositors
 
-Adapt the matched reference; do not invent a parallel implementation or fresh scaffold when a ref already covers the case.
+An SCA depositor signs burn intents in one of two ways:
+
+- **ERC-1271 (no delegate)** -- the SCA signs its own burn intent. Set `sourceDepositor` = `sourceSigner` = the SCA, pass the opaque signature bytes that make `isValidSignature` return `0x1626ba7e` (do not split into `v`, `r`, `s`), and POST `{ burnIntent, signature, contractSigner: true }`. No reference file covers this path; follow `https://developers.circle.com/gateway/howtos/transfer-with-erc-1271.md`. Use it for any SCA, including Circle Developer-Controlled Wallets SCAs (sign with `client.signTypedData` from the SCA wallet). Not supported for Gateway Nanopayments or x402 batch settlement.
+- **EOA delegate (optional alternative)** -- an SCA that has added an EOA delegate on the source chain, which signs its burn intents -> `references/transfer-evm-delegate.md`. Do NOT use it for an ordinary (EOA) Circle Wallets transfer.
 
 ## Rules
 
@@ -168,8 +168,7 @@ Adapt the matched reference; do not invent a parallel implementation or fresh sc
 
 ### Best Practices
 
-- ALWAYS read the correct reference files before implementing.
-- ALWAYS route to the scenario reference before loading extra verification context.
+- ALWAYS read the matching scenario reference before implementing; load extra verification context only when it lacks something.
 - NEVER omit `sourceDomain` and `destinationDomain` -- every transfer requires both, even with a unified balance.
 - NEVER use 18 decimals for USDC. ALWAYS use 6 decimals (`parseUnits(amount, 6)`).
 - In React apps that already use wagmi, prefer the existing wagmi/provider pattern instead of introducing a parallel wallet connection stack.
@@ -182,7 +181,7 @@ Adapt the matched reference; do not invent a parallel implementation or fresh sc
 - CCTP is a better fit for **infrequent or ad-hoc** transfers where maintaining a unified balance is not worth the upfront deposit.
 - Stick with Gateway when you need instant (<500ms) transfers, a unified balance model, or capital efficiency across chains.
 
-WARNING: Solana wallet compatibility is limited for Gateway. Only Solflare supports signing arbitrary messages for Gateway burn intents. Phantom and most other Solana wallets will reject the signing request.
+WARNING: a Solana burn intent is a binary message (`0xff`-prefixed, not UTF-8 text) signed with the wallet's `signMessage`. Some browser wallets refuse non-text messages, so confirm the target wallet signs one on devnet before relying on it.
 
 ## Reference Links
 

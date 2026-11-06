@@ -13,7 +13,7 @@ This script:
 1. Builds a Solana Gateway burn intent
 2. Signs the encoded burn intent with the Solana keypair
 3. Submits the signed burn intent to the Gateway `/transfer` API
-4. Prepares the recipient Solana USDC ATA
+4. Resolves the recipient USDC token account: `RECIPIENT_ADDRESS` itself if it is one, otherwise its ATA (created if missing)
 5. Calls `gatewayMint` on Solana via Anchor
 6. Waits for mint confirmation
 
@@ -42,6 +42,7 @@ import {
 import {
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
+  getAccount,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import {
@@ -277,7 +278,8 @@ function signSolanaBurnIntent(secretKey: Uint8Array, encodedBurnIntent: Uint8Arr
       Buffer.from("302e020100300506032b657004220420", "hex"),
       Buffer.from(secretKey.slice(0, 32)),
     ]),
-    dsaEncoding: "ieee-p1363",
+    format: "der",
+    type: "pkcs8",
   });
 
   return `0x${signature.toString("hex")}` as Hex;
@@ -315,6 +317,25 @@ function decodeAttestationSet(attestation: Hex) {
   };
 }
 
+async function resolveRecipientTokenAccount(
+  connection: Connection,
+  recipient: PublicKey,
+  usdcMint: PublicKey,
+): Promise<{ tokenAccount: PublicKey; isExistingTokenAccount: boolean }> {
+  const info = await connection.getAccountInfo(recipient);
+  if (info?.owner.equals(TOKEN_PROGRAM_ID)) {
+    const account = await getAccount(connection, recipient);
+    if (!account.isInitialized || !account.mint.equals(usdcMint)) {
+      throw new Error("RECIPIENT_ADDRESS is a token account but not an initialized USDC token account");
+    }
+    return { tokenAccount: recipient, isExistingTokenAccount: true };
+  }
+  return {
+    tokenAccount: getAssociatedTokenAddressSync(usdcMint, recipient),
+    isExistingTokenAccount: false,
+  };
+}
+
 async function main() {
   const connection = new Connection(SOLANA_CONFIG.rpcEndpoint, "confirmed");
   const sourceWallet = new Wallet(sourceKeypair);
@@ -322,7 +343,8 @@ async function main() {
   const usdcMint = new PublicKey(SOLANA_CONFIG.usdc);
   const minterProgramId = new PublicKey(SOLANA_CONFIG.gatewayMinter);
 
-  const recipientAta = getAssociatedTokenAddressSync(usdcMint, recipientPublicKey);
+  const { tokenAccount: recipientAta, isExistingTokenAccount } =
+    await resolveRecipientTokenAccount(connection, recipientPublicKey, usdcMint);
 
   const sourceGatewayWalletBytes = solanaAddressToBytes32(
     Buffer.from(new PublicKey(SOLANA_CONFIG.gatewayWallet).toBytes()),
@@ -396,24 +418,26 @@ async function main() {
     signature: Hex;
   };
 
-  const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
-    sourceWallet.publicKey,
-    recipientAta,
-    recipientPublicKey,
-    usdcMint,
-  );
+  if (!isExistingTokenAccount) {
+    const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
+      sourceWallet.publicKey,
+      recipientAta,
+      recipientPublicKey,
+      usdcMint,
+    );
 
-  const ataTx = new Transaction().add(createAtaIx);
-  const { blockhash, lastValidBlockHeight } =
-    await connection.getLatestBlockhash();
-  ataTx.recentBlockhash = blockhash;
-  ataTx.feePayer = sourceWallet.publicKey;
+    const ataTx = new Transaction().add(createAtaIx);
+    const { blockhash, lastValidBlockHeight } =
+      await connection.getLatestBlockhash();
+    ataTx.recentBlockhash = blockhash;
+    ataTx.feePayer = sourceWallet.publicKey;
 
-  const ataSignature = await connection.sendTransaction(ataTx, [sourceKeypair]);
-  await connection.confirmTransaction(
-    { signature: ataSignature, blockhash, lastValidBlockHeight },
-    "confirmed",
-  );
+    const ataSignature = await connection.sendTransaction(ataTx, [sourceKeypair]);
+    await connection.confirmTransaction(
+      { signature: ataSignature, blockhash, lastValidBlockHeight },
+      "confirmed",
+    );
+  }
 
   const provider = new AnchorProvider(
     connection,
@@ -462,7 +486,7 @@ async function main() {
     .remainingAccounts(remainingAccounts)
     .rpc();
 
-  console.log(`Prepared recipient ATA: ${recipientAta.toBase58()}`);
+  console.log(`Recipient token account: ${recipientAta.toBase58()}`);
   console.log(`Mint transaction: ${mintSignature}`);
 }
 

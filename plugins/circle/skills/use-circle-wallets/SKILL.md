@@ -8,7 +8,7 @@ requirements:
 
 ## Overview
 
-Circle offers three wallet types -- developer-controlled, user-controlled, and modular -- each with different custody models, account types, key management, and capabilities. This skill helps you pick the right one.
+Circle offers three wallet types -- developer-controlled, user-controlled, and modular -- that differ in custody model, account types, key management, and capabilities. Use this skill to pick one, then hand off to that type's skill.
 
 ## Quick Comparison
 
@@ -17,29 +17,28 @@ Circle offers three wallet types -- developer-controlled, user-controlled, and m
 | **Custody** | Developer | User | User |
 | **Auth** | API key + entity secret (backend) | Social login / email OTP / PIN | Passkey (WebAuthn) |
 | **Account types** | EOA, SCA | EOA, SCA | Modular Wallet SCA (ERC-6900) |
-| **Gas sponsorship** | SCA via Circle Paymaster | SCA via Circle Paymaster | Circle Paymaster or third-party paymaster |
+| **Gas sponsorship** | SCA via Circle Gas Station | SCA via Circle Gas Station | Circle Gas Station (`paymaster: true`) |
 | **Custom modules** | No | No | Yes |
 | **Architecture** | Backend SDK only | Backend + frontend SDKs | Frontend SDK only |
 
 ## Decision Guide
 
-For the latest supported account types on different blockchains: https://developers.circle.com/wallets/account-types
+Latest per-chain support: [account types](https://developers.circle.com/wallets/account-types), [features](https://developers.circle.com/wallets/supported-blockchains).
 
-For the latest supported features on different blockchains: https://developers.circle.com/wallets/supported-blockchains
-
-1. **Who controls the keys / who is the custodian?**
-   - Developer controls -> Developer-controlled wallets -> step 3
-   - End user controls -> step 2
+1. **Who controls the keys (custodian)?**
+   - Developer -> Developer-controlled wallets -> step 3
+   - End user -> step 2
 2. **Auth method?**
    - Passkey (WebAuthn biometric) with extensible modules -> Modular wallets -> step 4
    - Social login, email OTP, or PIN -> User-controlled wallets -> step 3
 3. **Account type?**
-   - Solana, Aptos, or NEAR -> EOA (only option)
+   - Solana or Aptos -> EOA (only option)
+   - NEAR -> Developer-controlled only, signing only (no transfers, balances, or contract execution); user-controlled wallets do not support NEAR
    - Ethereum mainnet -> EOA (SCA gas costs prohibitive, Modular Wallet not supported)
    - L2 (Arbitrum, Base, Polygon, Optimism, etc.) -> EOA if max TPS needed; SCA if gas sponsorship or batching needed; Modular Wallet if passkey or other modular plugins needed
 4. **Chain check (Modular wallets)**
-   - Supported: Arbitrum, Avalanche, Base, Monad, Optimism, Polygon, Unichain
-   - NOT supported: Ethereum, Solana, Aptos, NEAR. Fall back to user-controlled wallets with SCA.
+   - Supported: Arbitrum, Arc, Avalanche, Base, Monad, Optimism, Polygon, Unichain
+   - NOT supported: Ethereum, Solana, Aptos, NEAR. Fall back to user-controlled wallets with SCA (NEAR: developer-controlled signing only, see above).
 
 ### Example scenarios
 
@@ -47,29 +46,27 @@ READ `references/example-scenarios.md` for common scenarios mapped to a wallet-t
 
 ## Implementation Patterns
 
-Once a wallet type has been determined, TRIGGER the corresponding skill:
+Once the wallet type is chosen, TRIGGER its skill:
 
 - Developer-controlled -> `use-developer-controlled-wallets` skill
 - User-controlled -> `use-user-controlled-wallets` skill
-- Modular (Passkey) -> `use-modular-wallets` skill 
+- Modular (Passkey) -> `use-modular-wallets` skill
 
 ## Strict Rules
 
-- ALWAYS select the wallet type before starting implementation using the comparison table and decision guide above.
-- ALWAYS use EOA on Ethereum mainnet (SCA gas prohibitive, Modular Wallet not supported) and on Solana, Aptos, NEAR (SCA/Modular Wallet not available).
-- ALWAYS prefer SCA or Modular Wallet on L2 chains (Arbitrum, Base, Polygon, Optimism, etc.) when gas sponsorship or batch operations are needed.
-- NEVER mix wallet types in a single user flow -- pick one and use its corresponding skill.
-- ALWAYS delegate to the specific wallet skill (`use-developer-controlled-wallets`, `use-user-controlled-wallets`, or `use-modular-wallets`) for implementation.
+- ALWAYS select the wallet type with the comparison table and decision guide before starting implementation.
+- NEVER mix wallet types in a single user flow -- pick one and use its skill.
+- ALWAYS delegate implementation to the chosen wallet type's skill.
 
 ## Safety & Escalation
 
-This skill only **recommends** a wallet type; it performs no on-chain writes, transfers, signing, or key operations itself. Every side effect — creating a wallet, signing, sending funds, deploying a contract — happens in the delegated implementation skill, which owns confirmation for those actions.
+This skill only **recommends** a wallet type; it performs no on-chain writes, transfers, signing, or key operations. Every side effect -- creating a wallet, signing, sending funds, deploying a contract -- happens in the delegated skill, which owns confirmation for those actions.
 
 Escalate before delegating when:
-- **Missing context** — the custody model, target chain, or auth method is unclear. Ask the user; do not guess a wallet type.
-- **Missing access** — the user lacks a Circle account, an API key + entity secret (developer-controlled), or a configured passkey domain (modular). Direct them to set that up first.
-- **Unsafe effects** — the selected path will move real funds on mainnet. Flag that the implementation skill must obtain explicit user confirmation before any mainnet transaction.
-- **User approval** — confirm the chosen wallet type with the user before handing off to the implementation skill.
+- **Missing context** -- the custody model, target chain, or auth method is unclear. Ask the user; do not guess a wallet type.
+- **Missing access** -- the user lacks a Circle account, an API key + entity secret (developer-controlled), or a configured passkey domain (modular). Direct them to set that up first.
+- **Unsafe effects** -- the selected path will move real funds on mainnet. Flag that the implementation skill must obtain explicit user confirmation before any mainnet transaction.
+- **User approval** -- confirm the chosen wallet type with the user before handing off.
 
 ## Reference Links
 

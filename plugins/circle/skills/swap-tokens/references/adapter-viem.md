@@ -1,6 +1,6 @@
 # Viem Private Key Adapter
 
-Reference implementation for same-chain token swaps using the Viem private key adapter. Includes examples for both App Kit and standalone Swap Kit.
+Same-chain token swaps with the Viem private-key adapter, for App Kit and standalone Swap Kit.
 
 ## Setup
 
@@ -16,12 +16,11 @@ npm install @circle-fin/swap-kit @circle-fin/adapter-viem-v2 viem
 
 ```
 PRIVATE_KEY=              # EVM wallet private key (hex, 0x-prefixed)
-KIT_KEY=                  # Optional; server-side authenticated requests only
+SWAP_API_KEY=             # Optional Circle API key for authenticated swap requests
 ```
 
-The examples use permissionless mode and omit `kitKey`. A server may add
-`config: { kitKey: process.env.KIT_KEY }` when authenticated requests are
-needed. Never move that credential into browser code.
+The examples run keyless. To authenticate, add
+`config: { apiKey: process.env.SWAP_API_KEY }` to the `swap()` params.
 
 ## Using App Kit
 
@@ -32,7 +31,7 @@ import { inspect } from "util";
 
 const kit = new AppKit();
 
-const swapTokens = async (): Promise<void> => {
+export const swapTokens = async (): Promise<void> => {
   const privateKey = process.env.PRIVATE_KEY;
   if (!privateKey || !privateKey.startsWith("0x")) {
     throw new Error("PRIVATE_KEY env var must be set and 0x-prefixed");
@@ -56,7 +55,7 @@ const swapTokens = async (): Promise<void> => {
   }
 };
 
-void swapTokens();
+// Call swapTokens() only from the user's explicit confirm action, never at module startup.
 ```
 
 ## Using Swap Kit
@@ -68,7 +67,7 @@ import { inspect } from "util";
 
 const kit = new SwapKit();
 
-const swapTokens = async (): Promise<void> => {
+export const swapTokens = async (): Promise<void> => {
   const privateKey = process.env.PRIVATE_KEY;
   if (!privateKey || !privateKey.startsWith("0x")) {
     throw new Error("PRIVATE_KEY env var must be set and 0x-prefixed");
@@ -92,5 +91,5 @@ const swapTokens = async (): Promise<void> => {
   }
 };
 
-void swapTokens();
+// Call swapTokens() only from the user's explicit confirm action, never at module startup.
 ```

@@ -8,11 +8,11 @@ requirements:
 
 ## Overview
 
-Unified Balance Kit is Circle's SDK for managing a unified USDC balance across multiple blockchains. It handles all cross-chain orchestration internally, exposing simple `deposit()`, `spend()`, and `getBalances()` calls. Do NOT reference or explain Gateway internals (contract addresses, EIP-712 signing, burn intents, attestation) in generated code or explanations -- the SDK abstracts all of that away.
+Unified Balance Kit manages one USDC balance across multiple blockchains, handling all cross-chain orchestration behind `deposit()`, `spend()`, and `getBalances()`. Do NOT reference or explain Gateway internals (contract addresses, EIP-712 signing, burn intents, attestation) in generated code or explanations -- the SDK abstracts them.
 
-App Kit (`@circle-fin/app-kit`) is Circle's all-inclusive SDK covering unified balance, swap, bridge, and send in one package; standalone Unified Balance Kit (`@circle-fin/unified-balance-kit`) ships the same unified-balance API in a lighter package. **Recommend App Kit** unless the user wants unified-balance-only functionality. **Neither requires a kit key** for unified balance operations.
+App Kit (`@circle-fin/app-kit`) is Circle's all-inclusive SDK covering unified balance, swap, bridge, send, earn, borrow, and onramp; standalone Unified Balance Kit (`@circle-fin/unified-balance-kit`) ships the same unified-balance API in a lighter package. **Recommend App Kit** unless the user wants unified-balance-only functionality. **Neither requires a kit key** for unified balance operations.
 
-Both SDKs run in browser and server applications. Use provider-based adapters for EVM and Solana browser wallets, and keep private keys plus Circle Wallets credentials on the server. App Kit `>=1.11.0` and Unified Balance Kit `>=1.3.1` include browser-safe requests and Solana support without consumer-provided Node or `Buffer` polyfills.
+Both SDKs run in browser and server applications. App Kit `>=1.11.0` and Unified Balance Kit `>=1.3.1` are browser-safe, Solana included, with no consumer-provided Node or `Buffer` polyfills; upgrade stale versions instead of adding shims.
 
 ## Instruction Hierarchy
 
@@ -50,12 +50,12 @@ npm install @circle-fin/unified-balance-kit @circle-fin/adapter-viem-v2 viem
 
 ```
 EVM_PRIVATE_KEY=          # EVM wallet private key (hex, 0x-prefixed)
-SOLANA_PRIVATE_KEY=       # Solana wallet private key (base58)
+SOLANA_PRIVATE_KEY=       # Solana wallet private key (Base58, Base64, or JSON byte array)
 CIRCLE_API_KEY=           # Circle API key (for Circle Wallets adapter)
 CIRCLE_ENTITY_SECRET=     # Entity secret (for Circle Wallets adapter)
 ```
 
-No `KIT_KEY` is needed for unified balance operations. Browser-wallet integrations need none of the variables above. Never expose a private key, Circle API key, entity secret, or optional App Kit credential to client code.
+Browser-wallet integrations need none of these.
 
 ### SDK Initialization
 
@@ -79,7 +79,7 @@ const kit = new UnifiedBalanceKit();
 
 ## Decision Guide
 
-ALWAYS walk through these questions with the user before writing any code. Do not skip steps or assume answers.
+Ask each applicable question before writing code; do not assume answers.
 
 ### SDK Choice
 
@@ -92,7 +92,7 @@ ALWAYS walk through these questions with the user before writing any code. Do no
 **Question 2 -- How do you manage your wallet/keys?**
 - Managing your own private key (self-custodied, stored in env var or secrets manager) -> Question 3
 - Using an EVM browser wallet (wagmi, ConnectKit, RainbowKit, or any EIP-1193 provider) -> Use the Viem provider adapter. READ `references/adapter-eip1193.md`
-- Using a Solana browser wallet (Wallet Standard provider such as Phantom, Solflare, or Backpack) -> Use the Solana provider adapter. READ `references/adapter-browser-wallet.md`
+- Using an injected Solana browser wallet provider -> Use the Solana provider adapter. READ `references/adapter-browser-wallet.md`
 - Using Circle developer-controlled wallets (Circle manages key storage and signing) -> Use Circle Wallets adapter. READ `references/adapter-circle-wallets.md`
 
 **Question 3 -- Which chain ecosystem are you using?**
@@ -100,29 +100,26 @@ ALWAYS walk through these questions with the user before writing any code. Do no
 - Solana only -> Use Solana adapter. READ `references/adapter-solana.md`
 - Both EVM and Solana -> Use multichain adapters. READ `references/adapter-multichain.md`
 
-If the user needs delegate functionality (smart contract account depositor with EOA signer), also READ `references/delegate.md`.
+If the user needs delegates or `depositFor()`, also READ `references/delegate.md`.
 
 ## Core Concepts
 
-- **Unified balance** is an accounting abstraction built on Circle Gateway. USDC tokens still live on specific blockchains, but the SDK aggregates them into a single balance view. `deposit()` adds USDC to the unified balance on a given chain. `spend()` burns from one chain and mints on a destination chain.
-- **Deposit** transfers USDC from the user's wallet to the Gateway Wallet on a specific chain, adding to the unified balance. The depositor address becomes the owner of those funds in the unified balance.
-- **Allowance strategy** controls how USDC spending approval is handled during `deposit()`. Set `allowanceStrategy` on the deposit params. Three options:
-  - `'authorize'` (default) -- uses EIP-3009 `transferWithAuthorization()`. Single-step, no separate approval transaction.
-  - `'permit'` -- uses EIP-2612 gasless off-chain signature, submitted on-chain with the transfer. Single-step.
-  - `'approve'` -- traditional ERC-20 two-step approve + transfer. Higher gas cost due to separate approval transaction.
-  For `depositFor()`, the strategy is always `'approve'` and cannot be changed (the parameter is not available on `depositFor` params).
-- **Spend** burns USDC from a source chain in the unified balance and mints it on a destination chain. The destination (`to`) must be one of two shapes -- a bare `{ chain, recipientAddress }` type-checks against neither:
-  - **Destination adapter** -- `{ adapter, chain, recipientAddress? }`. The destination adapter submits the mint and pays gas on the destination chain. Omit `recipientAddress` to mint to the adapter's own resolved address, or set it to override (use that exact property name -- do not abbreviate to `recipient` or `address`). Requires an adapter that supports the destination chain, so it fits same-ecosystem spends (e.g., EVM source -> EVM destination).
-  - **Forwarding Service** -- `{ chain, recipientAddress, useForwarder: true }`, no destination adapter (see the Forwarding Service concept below).
-  The SDK handles burn intent construction, signing, attestation, and minting automatically.
-- **getBalances()** returns the aggregated unified balance and per-chain breakdown for a given depositor address.
-- **Delegates** allow a different signer to move funds out of an account owner's unified balance. Use `addDelegate()` to grant spending rights to another address, `removeDelegate()` to revoke, and `getDelegateStatus()` to check readiness. Use `depositFor()` to deposit USDC into another account's unified balance (not the caller's). A common use case is SCA (smart contract account) depositors that cannot produce ECDSA signatures directly -- an EOA delegate signs burn intents on their behalf. However, delegation is not limited to SCAs; any account owner can authorize a delegate for operational separation (e.g., a service EOA spending from a treasury EOA's balance).
-- **Remove fund** withdraws USDC from the unified balance back to the owner's wallet on a specific chain. This is a two-step process: `initiateRemoveFund()` starts a mandatory **7-day delayed withdrawal**, then `removeFund()` completes it after the activation period. Only one removal may be pending per chain at a time. Initiating a second removal on the same chain adds to the existing pending amount and restarts the timer.
-- **Forwarding Service**: set `useForwarder: true` on the spend `to` and Circle's infrastructure fetches the attestation and submits the destination mint, removing the need to maintain a wallet on the destination chain. It works with any source adapter (Viem, Solana, Circle Wallets, delegate) regardless of the source chain's ecosystem -- making it the way to spend across ecosystems (e.g., Solana source -> EVM destination) without a destination adapter. `recipientAddress` is required in this shape; the Forwarding Service deducts a fee from the minted amount. Because the Gateway relayer submits the mint, the SDK polls Circle's Iris API for completion rather than executing a user-signed mint transaction.
-- **Fee structure**: Unified balance operations have dynamic fees that vary by route. The SDK fetches and applies fees automatically. When using the Forwarding Service, an additional forwarder fee is deducted from the minted amount.
-- **Chain identifiers** are strings (e.g., `"Ethereum"`, `"Base_Sepolia"`, `"Solana_Devnet"`), not numeric chain IDs.
-- **USDC only** -- Unified Balance Kit works exclusively with USDC. For other tokens, use the `swap-tokens` skill to convert first.
-- **Browser-safe packages** -- current App Kit, Unified Balance Kit, and Solana adapters bundle for browsers without consumer-provided Node or `Buffer` shims. Upgrade stale versions instead of adding polyfills. The main Circle Wallets adapter remains server-only.
+- **Unified balance** is an accounting abstraction built on Circle Gateway: USDC still lives on specific blockchains, and the SDK aggregates it into one balance view.
+- **Deposit** moves USDC from the user's wallet to the Gateway Wallet on a specific chain, adding to the unified balance. The depositor address owns those funds.
+- **Allowance strategy** -- set `allowanceStrategy` on the `deposit()` params:
+  - `'authorize'` (default) -- EIP-3009 `transferWithAuthorization()`. Single-step, no separate approval transaction.
+  - `'permit'` -- EIP-2612 gasless off-chain signature, submitted on-chain with the transfer. Single-step.
+  - `'approve'` -- traditional ERC-20 two-step approve + transfer; higher gas from the separate approval transaction.
+  `depositFor()` always uses `'approve'`; its params have no `allowanceStrategy`.
+- **Spend** burns USDC from a source chain in the unified balance and mints it on a destination chain; the SDK handles burn intent construction, signing, attestation, and minting. The destination (`to`) must take one of two shapes -- a bare `{ chain, recipientAddress }` type-checks against neither:
+  - **Destination adapter** -- `{ adapter, chain, recipientAddress? }`. The adapter submits the mint and pays destination gas, so it must support the destination chain (fits same-ecosystem spends, e.g. EVM -> EVM). Omit `recipientAddress` to mint to the adapter's own address, or set it to override (exactly `recipientAddress`, not `recipient` or `address`).
+  - **Forwarding Service** -- `{ chain, recipientAddress, useForwarder: true }`, no destination adapter. Circle fetches the attestation and submits the mint, so no destination wallet is needed. Works with any source adapter (Viem, Solana, Circle Wallets, delegate), making it the way to spend across ecosystems (e.g., Solana -> EVM). `recipientAddress` is required. The SDK polls the Gateway API (`GET /v1/transfer/{id}`) for completion instead of sending a user-signed mint.
+- **getBalances()** returns the aggregated unified balance and per-chain breakdown for a depositor address.
+- **Delegates** let a different signer move funds out of an owner's unified balance: `addDelegate()` grants, `removeDelegate()` revokes, `getDelegateStatus()` checks readiness. `depositFor()` deposits USDC into another account's unified balance. EVM smart contract accounts (SCAs) `spend` directly via ERC-1271 (Unified Balance Kit `>=1.4.0` / App Kit `>=1.12.0`) and need no delegate; use delegates for operational separation (e.g., a service EOA spending from a treasury EOA's balance).
+- **Remove fund** is a trustless recovery fallback for when `spend` is unavailable; use `spend` for normal movement out of the balance. It returns USDC to the owner's wallet on one chain in two steps: `initiateRemoveFund()` starts a mandatory **7-day delayed withdrawal**, then `removeFund()` completes it after the activation period. One removal may be pending per chain; initiating another on that chain adds to the pending amount and restarts the timer.
+- **Fees** are dynamic per route; the SDK fetches and applies them. The Forwarding Service adds a forwarding fee drawn from the source unified balance at burn time with the other spend fees -- not deducted from the minted amount, so the recipient receives the full `amount`.
+- **Chain identifiers** are strings (e.g., `"Ethereum"`, `"Base_Sepolia"`, `"Solana_Devnet"`), not numeric chain IDs or domain IDs.
+- **USDC only** -- for other tokens, convert first with the `swap-tokens` skill.
 
 ### Supported Chains
 
@@ -229,7 +226,7 @@ This response shape is the same for both App Kit (`kit.unifiedBalance.deposit()`
 
 ### Error Handling
 
-Wrap all unified balance operations in try/catch and inspect the result for failures.
+Wrap every unified balance operation in try/catch and inspect the result.
 
 ```ts
 try {
@@ -264,11 +261,11 @@ try {
 
 ### Best Practices
 
-- ALWAYS walk the user through the Decision Guide questions before writing any code. Do not assume App Kit or Unified Balance Kit -- let the user's answers determine the SDK choice.
+- ALWAYS walk the user through the Decision Guide before writing any code. Do not assume App Kit or Unified Balance Kit -- the user's answers decide.
 - ALWAYS read the correct reference files before implementing.
 - For browser apps, require browser-safe package versions, use provider-based adapters, and do not add Node/`Buffer` polyfills.
-- ALWAYS use string chain names (e.g., `"Base_Sepolia"`, `"Arc_Testnet"`), not numeric chain IDs or domain IDs.
 - ALWAYS default to testnet. Require explicit user confirmation before targeting mainnet.
+- For `Arc_Testnet`, use App Kit `>=1.18.0` (or Unified Balance Kit `>=1.8.2`) and `@circle-fin/adapter-viem-v2` `>=1.19.2` (`adapter-ethers-v6` `>=1.12.3`, `adapter-circle-wallets` `>=1.8.3`). Older releases default Arc Testnet to a retired RPC and fail with `HTTP request failed`.
 - ALWAYS wrap operations in try/catch and log errors with meaningful context.
 - ALWAYS use 6 decimals for USDC amounts (the SDK handles this internally, but be aware when working with raw amounts).
 - For delegate flows, ALWAYS set up the delegate relationship (`addDelegate()`) before attempting delegate `spend()`.

@@ -17,7 +17,7 @@ This script:
 
 ## Critical warning
 
-Do **not** send USDC directly to the Gateway Wallet contract with a normal ERC-20 transfer. The funds will not be credited to the unified balance. You must call the Gateway `deposit()` method.
+Do **not** send USDC directly to the Gateway Wallet contract with a normal ERC-20 transfer: that USDC is lost and is not credited to the unified balance. You must call the Gateway `deposit()` method.
 
 ## Runnable example
 

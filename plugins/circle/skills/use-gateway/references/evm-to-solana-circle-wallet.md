@@ -11,7 +11,7 @@ Canonical runnable references:
 
 This script:
 
-1. Creates the recipient Solana USDC ATA if needed
+1. Creates the recipient Solana USDC ATA if needed. `RECIPIENT_ADDRESS` must be the recipient's Circle wallet address, not a token account: it signs the ATA and mint transactions
 2. Builds an EVM Gateway burn intent
 3. Signs the burn intent with Circle Wallets `signTypedData`
 4. Submits the signed burn intent to the Gateway `/transfer` API
@@ -332,6 +332,10 @@ async function main() {
   );
   setProvider(provider);
 
+  const recipientInfo = await connection.getAccountInfo(recipientPubkey);
+  if (recipientInfo?.owner.equals(TOKEN_PROGRAM_ID)) {
+    throw new Error("RECIPIENT_ADDRESS is a token account; pass the recipient's Circle wallet address");
+  }
   const recipientAta = getAssociatedTokenAddressSync(usdcMint, recipientPubkey);
 
   const { blockhash: ataBlockhash, lastValidBlockHeight: ataBlockHeight } =

@@ -10,7 +10,7 @@ Canonical runnable references:
 
 This script:
 
-1. Creates the recipient Solana USDC ATA if needed
+1. Resolves the recipient USDC token account: `RECIPIENT_ADDRESS` itself if it is one, otherwise its ATA (created if missing)
 2. Builds a Solana Gateway burn intent
 3. Signs the prefixed burn-intent payload with Circle Wallets `signMessage`
 4. Submits the signed burn intent to the Gateway `/transfer` API
@@ -38,6 +38,7 @@ import {
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
+  getAccount,
   getAssociatedTokenAddressSync,
   createAssociatedTokenAccountIdempotentInstruction,
 } from "@solana/spl-token";
@@ -331,6 +332,25 @@ async function signAndBroadcast(
   return connection.sendRawTransaction(signedTxBytes);
 }
 
+async function resolveRecipientTokenAccount(
+  connection: Connection,
+  recipient: PublicKey,
+  usdcMint: PublicKey,
+): Promise<{ tokenAccount: PublicKey; isExistingTokenAccount: boolean }> {
+  const info = await connection.getAccountInfo(recipient);
+  if (info?.owner.equals(TOKEN_PROGRAM_ID)) {
+    const account = await getAccount(connection, recipient);
+    if (!account.isInitialized || !account.mint.equals(usdcMint)) {
+      throw new Error("RECIPIENT_ADDRESS is a token account but not an initialized USDC token account");
+    }
+    return { tokenAccount: recipient, isExistingTokenAccount: true };
+  }
+  return {
+    tokenAccount: getAssociatedTokenAddressSync(usdcMint, recipient),
+    isExistingTokenAccount: false,
+  };
+}
+
 async function main() {
   const connection = new Connection(RPC_ENDPOINT, "confirmed");
   const usdcMint = new PublicKey(USDC_ADDRESS);
@@ -346,31 +366,34 @@ async function main() {
   );
   setProvider(provider);
 
-  const recipientAta = getAssociatedTokenAddressSync(usdcMint, recipientPubkey);
+  const { tokenAccount: recipientAta, isExistingTokenAccount } =
+    await resolveRecipientTokenAccount(connection, recipientPubkey, usdcMint);
 
-  const { blockhash: ataBlockhash, lastValidBlockHeight: ataBlockHeight } =
-    await connection.getLatestBlockhash();
-  const ataTx = new Transaction();
-  ataTx.add(
-    createAssociatedTokenAccountIdempotentInstruction(
-      owner,
-      recipientAta,
-      recipientPubkey,
-      usdcMint,
-    ),
-  );
-  ataTx.recentBlockhash = ataBlockhash;
-  ataTx.feePayer = owner;
+  if (!isExistingTokenAccount) {
+    const { blockhash: ataBlockhash, lastValidBlockHeight: ataBlockHeight } =
+      await connection.getLatestBlockhash();
+    const ataTx = new Transaction();
+    ataTx.add(
+      createAssociatedTokenAccountIdempotentInstruction(
+        owner,
+        recipientAta,
+        recipientPubkey,
+        usdcMint,
+      ),
+    );
+    ataTx.recentBlockhash = ataBlockhash;
+    ataTx.feePayer = owner;
 
-  const ataSig = await signAndBroadcast(ataTx, "ATA creation");
-  await connection.confirmTransaction(
-    {
-      signature: ataSig,
-      blockhash: ataBlockhash,
-      lastValidBlockHeight: ataBlockHeight,
-    },
-    "confirmed",
-  );
+    const ataSig = await signAndBroadcast(ataTx, "ATA creation");
+    await connection.confirmTransaction(
+      {
+        signature: ataSig,
+        blockhash: ataBlockhash,
+        lastValidBlockHeight: ataBlockHeight,
+      },
+      "confirmed",
+    );
+  }
 
   const burnIntent = createBurnIntent({
     sourceDepositor: owner.toBase58(),

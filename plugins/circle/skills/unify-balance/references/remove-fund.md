@@ -1,13 +1,11 @@
 # Remove Fund
 
-Reference implementation for withdrawing USDC from a unified balance back to your wallet. Fund removal is a two-step process with a mandatory 7-day delay. Includes examples for both App Kit and standalone Unified Balance Kit.
+Withdraw USDC from a unified balance back to the owner's wallet when `spend` is unavailable (recovery fallback; see Remove fund in SKILL.md), with App Kit and standalone Unified Balance Kit.
 
 ## How It Works
 
-1. **`initiateRemoveFund()`** — Starts a delayed withdrawal on a specific chain. The 7-day timer begins at this point.
-2. **`removeFund()`** — Completes the withdrawal after the activation period has passed. USDC is transferred from the Gateway Wallet back to your wallet on that chain.
-
-Only one removal may be pending per chain at a time. Initiating a second removal on the same chain adds the requested amount to the existing pending removal and restarts the 7-day timer.
+1. **`initiateRemoveFund()`** -- starts the delayed withdrawal on one chain; the 7-day timer begins here.
+2. **`removeFund()`** -- after the activation period, transfers the USDC from the Gateway Wallet back to the owner's wallet on that chain.
 
 ## Setup
 

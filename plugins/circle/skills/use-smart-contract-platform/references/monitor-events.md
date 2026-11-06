@@ -1,8 +1,6 @@
 # Monitor Smart Contract Events
 
-Use these TypeScript snippets to receive webhook notifications when a contract emits specific events, and to fetch historical event logs.
-
-## Import contract (required before creating monitor)
+## Import the contract first
 
 ```ts
 import crypto from 'node:crypto';
@@ -34,13 +32,14 @@ console.log(monitorRes.data?.eventMonitor);
 ## Fetch event history
 
 ```ts
-const historyRes = await scpClient.getEventHistory({
+const historyRes = await scpClient.listEventLogs({
   contractAddress: "0xYourContractAddress",
   blockchain: "ARC-TESTNET",
-  eventSignature: "Transfer(address,address,uint256)",
 });
 
-console.log(historyRes.data?.eventLogs ?? []);
+const transferLogs = (historyRes.data?.eventLogs ?? []).filter(
+  (log) => log.eventSignature === "Transfer(address,address,uint256)",
+);
 ```
 
 ## Webhook payload shape (example)
@@ -61,7 +60,7 @@ console.log(historyRes.data?.eventLogs ?? []);
 }
 ```
 
-Use `notification.topics` and `notification.data` to decode indexed/non-indexed fields.
+Decode indexed fields from `notification.topics` and non-indexed fields from `notification.data`.
 
 ## Reference Links
 

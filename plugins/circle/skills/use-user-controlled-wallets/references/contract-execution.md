@@ -1,25 +1,15 @@
 # Executing Smart Contracts from User-Controlled Wallets
 
-## Overview
-
-Complete flow for executing a smart contract function from a user-controlled wallet. All contract executions follow the challenge-response model: the backend creates an execution challenge, then the frontend SDK collects user approval via Circle's hosted UI. Requires both a frontend (Web SDK) and backend (Node.js SDK) component.
-
-## User Flow
-
-1. **Backend creates a contract execution challenge**: Your backend calls the Circle API with the wallet ID, contract address, and ABI details, receiving a `challengeId`.
-
-2. **User authorizes execution**: The Web SDK executes the challenge. The user confirms via their PIN (or auth method) through Circle's hosted UI.
-
-3. **Transaction submitted**: After authorization, the transaction progresses through the standard lifecycle. Poll until terminal state.
+The backend creates an execution challenge (wallet ID, contract address, ABI details) and gets a `challengeId`; the frontend executes it so the user approves in Circle's hosted UI. The transaction then follows the standard lifecycle -- poll until a terminal state.
 
 ## Backend SDK Methods
 
 ### Execute using ABI function signature
 
-Pass the Solidity function signature and parameters as an array of strings. Supported parameter types: string, integer, boolean, and arrays.
+Pass parameters as an array of strings. Supported parameter types: string, integer, boolean, and arrays.
 
 ```ts
-const response = await circleClient.createContractExecutionTransaction({
+const response = await circleClient.createUserTransactionContractExecutionChallenge({
   userToken,
   walletId,
   contractAddress,
@@ -32,10 +22,10 @@ const response = await circleClient.createContractExecutionTransaction({
 
 ### Execute using raw call data
 
-Use `callData` when you have pre-encoded transaction data (e.g., from ethers or viem). `callData` and `abiFunctionSignature` are mutually exclusive.
+Use `callData` for pre-encoded data (e.g., from ethers or viem). `callData` and `abiFunctionSignature` are mutually exclusive.
 
 ```ts
-const response = await circleClient.createContractExecutionTransaction({
+const response = await circleClient.createUserTransactionContractExecutionChallenge({
   userToken,
   walletId,
   contractAddress,
@@ -47,10 +37,10 @@ const response = await circleClient.createContractExecutionTransaction({
 
 ### Execute a payable function
 
-Set `amount` to send native tokens (ETH, MATIC, etc.) when calling payable functions.
+`amount` sends native tokens (ETH, MATIC, etc.) with a payable call.
 
 ```ts
-const response = await circleClient.createContractExecutionTransaction({
+const response = await circleClient.createUserTransactionContractExecutionChallenge({
   userToken,
   walletId,
   contractAddress,
@@ -66,17 +56,18 @@ const response = await circleClient.createContractExecutionTransaction({
 
 ```ts
 const response = await circleClient.estimateContractExecutionFee({
+  userToken,
+  source: { walletId },
   contractAddress,
   abiFunctionSignature: "transfer(address,uint256)",
   abiParameters: ["0xRecipientAddress", "1000000"],
-  walletId,
 });
 // response.data: { low, medium, high } -- each tier includes gasLimit, gasPrice, maxFee, priorityFee, baseFee, networkFee
 ```
 
 ## Frontend Component
 
-All challenge IDs returned by the backend SDK methods above are executed on the frontend using the same pattern:
+Execute every `challengeId` above the same way:
 
 ```ts
 sdk.setAuthentication({ userToken, encryptionKey });

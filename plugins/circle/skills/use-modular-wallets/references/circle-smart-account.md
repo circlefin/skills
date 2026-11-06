@@ -2,7 +2,7 @@
 
 Reference implementation for creating a Circle Smart Account using passkeys and sending gasless USDC transfers via user operations.
 
-**Source**: [circle-smart-account example](https://github.com/circlefin/modularwallets-web-sdk/blob/master/examples/circle-smart-account/index.tsx)
+**Source**: circle-smart-account example ([React](https://github.com/circlefin/modularwallets-web-sdk/blob/master/examples/circle-smart-account/react/index.tsx), [TypeScript](https://github.com/circlefin/modularwallets-web-sdk/blob/master/examples/circle-smart-account/typescript/main.ts))
 
 ## Environment Variables
 
@@ -53,7 +53,7 @@ const bundlerClient = createBundlerClient({
 })
 ```
 
-**Arc mainnet:** import `arc` instead of `arcTestnet` from `viem/chains`, use the `` `${clientUrl}/arc` `` transport path, and pass the Arc USDC address `0x3600000000000000000000000000000000000000` directly to `encodeTransfer` (it is the same address on Arc mainnet and testnet). The SDK's `ContractAddress` enum currently exposes only `ArcTestnet_USDC`, so use the literal address for mainnet until an `Arc_USDC` constant ships.
+**Arc mainnet:** import `arc` instead of `arcTestnet` from `viem/chains`, use the `` `${clientUrl}/arc` `` transport path, and pass `ContractAddress.Arc_USDC` to `encodeTransfer` (the Arc USDC address is the same on Arc mainnet and testnet).
 
 ## Register a Passkey
 

@@ -1,6 +1,6 @@
 # Multichain Adapter (EVM + Solana)
 
-Reference implementation for multi-ecosystem unified balance operations combining EVM and Solana adapters. Deposit from multiple chains and spend across ecosystems. Includes examples for both App Kit and standalone Unified Balance Kit.
+Deposit from and spend across EVM and Solana by combining their adapters, for App Kit and standalone Unified Balance Kit.
 
 ## Setup
 
@@ -16,7 +16,7 @@ npm install @circle-fin/unified-balance-kit @circle-fin/adapter-viem-v2 viem @ci
 
 ```
 EVM_PRIVATE_KEY=          # EVM wallet private key (hex, 0x-prefixed)
-SOLANA_PRIVATE_KEY=       # Solana wallet private key (base58)
+SOLANA_PRIVATE_KEY=       # Solana wallet private key (Base58, Base64, or JSON byte array)
 ```
 
 ## Deposit from Multiple Chains (Using App Kit)
@@ -36,8 +36,8 @@ const depositMultichain = async (): Promise<void> => {
   }
 
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -87,8 +87,8 @@ const depositMultichain = async (): Promise<void> => {
   }
 
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -140,8 +140,8 @@ const spendMultichain = async (): Promise<void> => {
   }
 
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -199,8 +199,8 @@ const spendMultichain = async (): Promise<void> => {
   }
 
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -258,8 +258,8 @@ const checkBalances = async (): Promise<void> => {
   }
 
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {
@@ -306,8 +306,8 @@ const checkAllBalances = async (): Promise<void> => {
   }
 
   const solanaPrivateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!solanaPrivateKey || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(solanaPrivateKey)) {
-    throw new Error("SOLANA_PRIVATE_KEY env var must be set to a base58-encoded private key");
+  if (!solanaPrivateKey) {
+    throw new Error("SOLANA_PRIVATE_KEY env var must be set");
   }
 
   try {

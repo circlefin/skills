@@ -30,15 +30,19 @@ const result = await kit.bridge({
 });
 ```
 
-Forwarding Service fees are dynamic and fetched from the IRIS API at runtime. The SDK handles this automatically. Fees vary by route -- check the [Forwarding Service](https://developers.circle.com/cctp/concepts/forwarding-service) for the latest fee schedule.
+Forwarding fees vary by route; the SDK fetches them from the IRIS API at runtime. Forwarding fees to Solana also cover creating the recipient's USDC token account: an amount that does not exceed the fee fails with `INPUT_INVALID_AMOUNT`, and a `config.maxFee` you set yourself must cover it, so leave `maxFee` unset or use the `forwarder` fee from `estimate()`. Fee schedule: [Forwarding Service](https://developers.circle.com/cctp/concepts/forwarding-service).
 
 ## Event Handling
 
-Subscribe to individual CCTP steps or all events at once. Multiple callbacks per event are supported. `payload.values` is inferred precisely from the event key, so no type assertions are needed.
+Subscribe to individual steps or to `"*"`; multiple callbacks per event are allowed. `payload.values` is typed from the event key, but `bridge.approve` and `bridge.fetchAttestation` are shared with CCTPx (different `values` shape) -- narrow on `payload.protocol` first.
 
 ```ts
 kit.on("bridge.approve", (payload) => {
-  console.log("Approval completed:", payload.values.txHash);
+  const txHash =
+    payload.protocol === "cctp"
+      ? payload.values.txHash
+      : payload.values.transactionHash;
+  console.log("Approval completed:", txHash);
 });
 
 kit.on("bridge.burn", (payload) => {
@@ -46,7 +50,7 @@ kit.on("bridge.burn", (payload) => {
 });
 
 kit.on("bridge.fetchAttestation", (payload) => {
-  if (payload.values.state === "success") {
+  if (payload.protocol === "cctp" && payload.values.state === "success") {
     console.log("Attestation:", payload.values.data.attestation);
   }
 });
@@ -55,18 +59,19 @@ kit.on("bridge.mint", (payload) => {
   console.log("Mint completed:", payload.values.txHash);
 });
 
+// App Kit's wildcard also receives non-bridge events, some without `method`.
 kit.on("*", (payload) => {
-  console.log("Event:", payload.action, payload);
+  console.log("Event:", "method" in payload ? payload.method : payload.protocol, payload);
 });
 ```
 
 **CCTPx tokens** (wETH, cirBTC, EURC, token IDs) emit `bridge.transfer` and `bridge.forward` instead of `bridge.burn` and `bridge.mint`; see `non-usdc-cctpx.md`.
 
-**Bridge Kit only:** drop the `bridge.` prefix — the events are `"approve"`, `"burn"`, `"fetchAttestation"`, `"mint"`. The App Kit `bridge.*` namespacing only applies because App Kit's `kit.on()` also dispatches other namespaces (e.g. `unifiedBalance.*`) and filters bridge events by the `bridge.` prefix.
+**Bridge Kit:** events have no `bridge.` prefix -- `"approve"`, `"burn"`, `"fetchAttestation"`, `"mint"`. Only App Kit namespaces them, because its `kit.on()` also carries other namespaces (e.g. `unifiedBalance.*`).
 
 ## Analyzing Failed Transfers
 
-Check `result.state` and `result.steps` to identify which step failed:
+Find the failed step in `result.steps`:
 
 ```ts
 const result = await kit.bridge({
@@ -91,7 +96,7 @@ if (result.state === "error") {
 
 ## Retrying Failed Transfers
 
-`kit.retryBridge()` (App Kit) resumes from the failed step, skipping the steps that already succeeded — so a timeout after `approve`/`burn` re-runs only the attestation fetch and mint. On Bridge Kit the same method is `kit.retry()`, with the same arguments.
+`kit.retryBridge()` (App Kit) or `kit.retry()` (Bridge Kit, same arguments) resumes from the failed step and skips the ones that succeeded -- a timeout after `approve`/`burn` re-runs only the attestation fetch and mint.
 
 ```ts
 const result = await kit.bridge({
@@ -101,7 +106,6 @@ const result = await kit.bridge({
 });
 
 if (result.state === "error") {
-  // App Kit. On Bridge Kit, call kit.retry(result, { from, to }) instead.
   const retryResult = await kit.retryBridge(result, {
     from: adapter,
     to: adapter,

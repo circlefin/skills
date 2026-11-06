@@ -74,6 +74,7 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   appendTransactionMessageInstruction,
   signTransactionMessageWithSigners,
+  assertIsTransactionWithBlockhashLifetime,
   createKeyPairSignerFromBytes,
   getSignatureFromTransaction,
 } from "@solana/kit";
@@ -232,6 +233,7 @@ const transactionMessage = pipe(
 );
 
 const signedTransaction = await signTransactionMessageWithSigners(transactionMessage);
+assertIsTransactionWithBlockhashLifetime(signedTransaction);
 
 await sendAndConfirmTransaction(signedTransaction, { commitment: "confirmed" });
 

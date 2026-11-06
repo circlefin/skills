@@ -59,9 +59,10 @@ If `circle` is not installed, hand off to `use-circle-cli` for install and setup
 
 Read:
 
-- `https://developers.circle.com/gateway/nanopayments`
-- `https://developers.circle.com/gateway/nanopayments/quickstarts/seller`
-- `https://developers.circle.com/gateway/nanopayments/references/supported-networks`
+- `https://developers.circle.com/gateway-nanopayments`
+- `https://developers.circle.com/gateway-nanopayments/quickstarts/seller`
+- `https://developers.circle.com/gateway-nanopayments/supported-networks`
+- `https://developers.circle.com/agent-stack/agent-marketplace/get-listed`
 - `https://agents.circle.com/services`
 
 Current seller docs use Arc Testnet in examples and the middleware can discover supported networks. Do not hardcode `BASE`, `MATIC`, Polygon, or Arc from memory; use the docs, 402 `accepts[]`, and CLI hints.
@@ -83,7 +84,7 @@ Collect:
 - Public HTTPS URL for the paid service
 - Marketplace name, category, support/contact URL, and example prompts
 
-For Express, READ `references/express-integration.md` for the dependency install and the Gateway middleware setup (`createGatewayMiddleware` + `gateway.require`).
+For Express, READ `references/express-integration.md` for the dependency install and the Gateway middleware setup (`createGatewayMiddleware` + `gateway.require`), including the testnet `facilitatorUrl` — the middleware defaults to mainnet.
 
 Use environment variables for addresses and provider config. Never commit private keys, API keys, OTPs, or wallet session material.
 
@@ -127,7 +128,7 @@ Always pass `-X` from inspect output. If the buyer wallet is not ready, hand off
 
 There may not be a self-serve publish command. Treat marketplace listing as a submission package unless current docs expose a registry API. Phrases like "register the service" or "list it with the CLI" are too strong unless you have found the current seller workflow that actually does that.
 
-Use the current seller path from `https://agents.circle.com/services`. The marketplace seller section currently links to "Talk to us" for intake; include the current form URL from that page in the handoff and make clear it is a submission request, not instant publication.
+Use the seller path in `https://developers.circle.com/agent-stack/agent-marketplace/get-listed`: listings are reviewed manually through the intake form linked there (endpoint URL, payout wallet address, short description; a published OpenAPI spec is a prerequisite). Make clear it is a submission request, not instant publication.
 
 Prepare:
 
@@ -138,7 +139,7 @@ Prepare:
 - Category, description, and example agent prompts
 - Support/contact URL and health check URL
 - Evidence: unpaid request returns 402; paid request returns 200
-- Current marketplace intake or "Talk to us" form URL from the seller path
+- Intake form URL from the "Get listed" doc
 
 ## Common Mistakes
 

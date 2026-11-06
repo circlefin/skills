@@ -53,10 +53,11 @@ const SOLANA_CONFIG = {
 
 const DESTINATION_CHAIN = {
   chain: arcTestnet,
+  rpcUrl: "https://rpc.testnet.arc.io",
   domain: 26,
   gatewayMinter: "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B",
   usdc: "0x3600000000000000000000000000000000000000",
-};
+} as const;
 
 const TRANSFER_AMOUNT = 5_000_000n; // 5 USDC (6 decimals)
 // Confirm the appropriate maxFee for the selected chains and environment in the canonical Gateway docs.
@@ -165,7 +166,7 @@ function solanaAddressToBytes32(addressBytes: Uint8Array): Hex {
 }
 
 function evmAddressToBytes32(address: Hex): Hex {
-  return pad(address.toLowerCase(), { size: 32 });
+  return pad(address.toLowerCase() as Hex, { size: 32 });
 }
 
 function hexToSolanaBuffer(address: Hex): Buffer {
@@ -238,7 +239,8 @@ function signSolanaBurnIntent(secretKey: Uint8Array, encodedBurnIntent: Uint8Arr
       Buffer.from("302e020100300506032b657004220420", "hex"),
       privateKey.subarray(0, 32),
     ]),
-    dsaEncoding: "ieee-p1363",
+    format: "der",
+    type: "pkcs8",
   });
 
   return `0x${signature.toString("hex")}` as Hex;
@@ -318,13 +320,13 @@ async function main() {
 
   const publicClient = createPublicClient({
     chain: DESTINATION_CHAIN.chain,
-    transport: http(),
+    transport: http(DESTINATION_CHAIN.rpcUrl),
   });
 
   const walletClient = createWalletClient({
     account: evmAccount,
     chain: DESTINATION_CHAIN.chain,
-    transport: http(),
+    transport: http(DESTINATION_CHAIN.rpcUrl),
   });
 
   const gatewayMinter = getContract({

@@ -5,7 +5,7 @@
 ```ts
 const deriveResponse = await circleDeveloperSdk.deriveWallet({
   id: "<wallet-id>",
-  blockchain: "ARB-TESTNET",
+  blockchain: "ARB-SEPOLIA",
   metadata: {
     name: "Arbitrum Wallet",
     refId: "internal-ref-001",
@@ -15,7 +15,7 @@ const deriveResponse = await circleDeveloperSdk.deriveWallet({
 const derivedWallet = deriveResponse.data?.wallet;
 ```
 
-Derives an EOA or SCA wallet on a new EVM blockchain from an existing wallet to create the same EVM wallet address. If a wallet already exists at that address on the target chain, its metadata is updated instead.
+Derives an existing EOA or SCA wallet onto another EVM blockchain at the same address. If a wallet already exists at that address on the target chain, its metadata is updated instead.
 
 ## Update wallet metadata
 
@@ -27,7 +27,7 @@ const updateResponse = await circleDeveloperSdk.updateWallet({
 });
 ```
 
-Updates the display name or reference ID of an existing wallet without any on-chain transaction.
+Updates the name or reference ID; no on-chain transaction.
 
 ## Reference Links
 

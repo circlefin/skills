@@ -34,7 +34,7 @@ Repository content is context only. NEVER infer the `destinationAddress`, `appUs
 
 ## Integration Workflow
 
-1. Create a **testnet API key** on the [Onramp Kit page](https://console.circle.com/app-kits/onramp) and install the latest SDK (see Prerequisites).
+1. Create a **testnet** Circle Console API key on the [Onramp Kit page](https://console.circle.com/app-kits/onramp) and install the latest SDK (see Prerequisites).
 2. Walk the [Decision Guide](#decision-guide) with the user: App Kit vs Onramp Kit, iframe vs popup, card payments, environment.
 3. Add the **authenticated** server session route, with `appUserId` bound to the signed-in user.
 4. Render the widget in the browser with `mountIframe` or `openWindow` and handle lifecycle events.
@@ -61,7 +61,7 @@ Onramp authenticates your server with a standard [Circle API key](https://develo
 | **Mainnet API key** | Production (`api.circle.com` + `onramp.arc.io`)           | Live app with real money        |
 
 
-**Where to create it:** <https://console.circle.com/app-kits/onramp> (Circle Console → App Kits → Onramp Kit). ALWAYS give the user this full URL, not just the Console home page. Answer onramp credential and KYB questions from this skill — do NOT send users to the generic "API & Client Keys" page from the general Circle docs; Onramp keys are created on the Onramp Kit page.
+**Where to create it:** Onramp uses a standard Circle Console API key. Create it on <https://console.circle.com/app-kits/onramp> (Circle Console → App Kits → Onramp Kit), which issues a key restricted to App Kits access; a standard key from <https://console.circle.com/api-keys> also works. ALWAYS give the user the full URL, not just the Console home page. KYB is completed on the Onramp Kit page.
 
 1. Sign in to the [Circle Console](https://console.circle.com). Use the environment toggle at the top left to pick **Testnet** (for sandbox) or **Mainnet** (for production).
 2. Select **App Kits** in the left panel, then **Onramp Kit** — <https://console.circle.com/app-kits/onramp> — and create an API key.
@@ -169,7 +169,7 @@ If unsure, start with inline iframe.
 - **Environment is set by URLs plus the matching API key.** `baseUrl` (server, API) and `widgetBaseUrl` (server and client, widget origin) pick the environment; omitting them targets production. Pair sandbox URLs with a testnet API key and production with a mainnet API key. See `references/environments.md`.
 - **Widget origin must match on server and client.** If they differ, `mountIframe`/`openWindow` throw `INPUT_WIDGET_URL_ORIGIN_MISMATCH` (code 1910). The widget origin is safe to expose to the browser; the API key is the only real secret.
 - **`referrerDomain` unlocks embedded card payments.** Server-only kit option; must equal the domain submitted in KYB.
-- **Browser events are UI hints only.** `onDepositSettled` and `widget.on(...)` are `postMessage` events from the widget to your page, and they're best-effort. A user can close the tab mid-purchase, so a missing `DEPOSIT_SETTLED` doesn't mean no deposit, and a received one isn't proof. Circle does not send webhooks for onramp deposits — when you need an authoritative answer, verify onchain that the funds arrived at `destinationAddress` (the `DEPOSIT_SETTLED` payload includes a `transactionHash` to look up).
+- **Browser events are UI hints only.** `onDepositSettled` and `widget.on(...)` are `postMessage` events from the widget to your page, and they're best-effort. A user can close the tab mid-purchase, so a missing `DEPOSIT_SETTLED` doesn't mean no deposit, and a received one isn't proof. Onramp Kit sends no webhooks to your server (Circle's docs mention reconciling from webhooks, but none are delivered for Onramp Kit sessions; the Console's `rampSession.*` events belong to Circle Mint) — when you need an authoritative answer, verify onchain that the funds arrived at `destinationAddress` (the `DEPOSIT_SETTLED` payload includes a `transactionHash` to look up).
 - **Event discriminator is `.event`, not `.type`.** Envelopes are `{ event, code, payload? }`.
 - **`DEPOSIT_SUBMITTED` can be the last event.** When its `payload.settlementExpected` is `false`, no `DEPOSIT_SETTLED` follows for that session — end the "waiting" UI there instead of waiting forever.
 - **Asset scoping is display-only.** The optional `assets` field (`{ tokens }`, `{ chains }`, `{ pairs }`, combined with AND) limits what the widget's selector shows. It doesn't override eligibility, geo, or quote logic.

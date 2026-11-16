@@ -1,23 +1,23 @@
-# Crypto transfer — alternatives to the browser QR
-
-## Save the QR as a PNG file
+### Save the QR as a PNG file
 
 ```bash
 circle wallet fund --address <addr> --chain ARC --amount 10 --token usdc --method crypto --export ~/Downloads
 ```
 
-## Manual transfer (no QR)
+### Manual transfer (no QR)
 
 Provide the user the raw transfer details:
 
 - Destination: the wallet address from `circle wallet list`
 - Token: USDC
 - Network: Arc (chain ID 5042)
-- USDC contract on Arc: `0x3600000000000000000000000000000000000000`
+- USDC contract on Arc: `0x3600000000000000000000000000000000000000` (USDC is Arc's native gas token; this address is its ERC-20 interface)
 
 For other chains, look up the USDC contract address at https://developers.circle.com/stablecoins/usdc-contract-addresses.
 
-## Verify after transfer
+### Verify after transfer
+
+Check the chain the user sent on (ARC by default):
 
 ```bash
 circle wallet balance --address <addr> --chain ARC --output json

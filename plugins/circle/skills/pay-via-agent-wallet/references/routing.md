@@ -1,29 +1,14 @@
-# Routing: seller, payment method, and chain
+#### Pick the seller by task fit
 
-## Pick the seller by task fit
+When multiple sellers serve the user's need, **do not** filter to "vanilla-only sellers on the chain I already have balance on" — the most common failure mode this skill exists to prevent. Read every candidate's full `accepts[]` (CLI ≥1.2: `paymentOptions[]` in `circle services inspect --output json`; CLI 1.1.x: the raw 402 via `curl -s '<service-url>'`) and pick the best task fit. Gateway-only sellers are first-class.
 
-When multiple sellers serve the user's need, **do not** filter to "vanilla-only sellers on the chain I already have balance on" — the most common failure mode this skill exists to prevent. Read every candidate's full `accepts[]` (CLI ≥1.2: `paymentOptions[]` in `circle services inspect --output json`; CLI 1.1.x: the raw 402 via `curl -s "<service-url>"`) and pick the best task fit. Gateway-only sellers are first-class.
-
-## Gateway vs vanilla: treat the first paid call as wallet onboarding
+#### Gateway vs vanilla: treat the first paid call as wallet onboarding
 
 If any task-fit seller you intend to call accepts Gateway on Arc and the user has vanilla USDC on BASE, ARB, or OP, hand off to `fund-agent-wallet` for an eco deposit (~30s plus a small fee, settles on Arc), then pay Gateway-capable calls with `--chain ARC` and vanilla-only sellers with vanilla on a chain they accept. If the seller's Gateway support is limited to another chain (e.g. Polygon only), `fund-agent-wallet` covers depositing directly on that chain.
 
 Never suggest `gateway deposit --method direct` on BASE without verifying one of the four conditions in `fund-agent-wallet` ("Eco vs direct") — eco is the default and saves 12+ minutes of finality wait.
 
-## Picking `--chain`
-
-The seller's `accepts[]` decides which chains are payable. **Don't assume BASE.** A common failure:
-
-```
-Error: Seller does not accept --chain BASE. Accepted chains: Polygon.
-  Hint: Retry with --chain MATIC — you have <amount> USDC Gateway balance there.
-```
-
-Retry with the chain from the CLI's hint — it is authoritative. Many sellers accept only Polygon (`--chain MATIC`) or only Avalanche (`--chain AVAX`).
-
-CLI chain values: `ARC` (Arc), `BASE`, `MATIC` (Polygon), `ETH` (Ethereum), `ARB` (Arbitrum), `OP` (Optimism), `AVAX` (Avalanche), `UNI` (Unichain), `MONAD` (Monad).
-
-## Rationalizations to reject
+#### Rationalizations to reject
 
 Seen in real production traces. If your reasoning matches a row, take the skill's path instead.
 

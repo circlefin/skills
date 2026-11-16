@@ -7,22 +7,15 @@ Once the user has picked a service from Step 7:
 circle services inspect '<service-url>' --output json
 ```
 
-**Before running `circle services pay`, fetch the wallet-pay skill.** It covers chain/scheme triage, Gateway-vs-vanilla decisions, the common-error table, and workarounds for known CLI gaps. The bare `circle services pay` command does not advertise these:
-```bash
-curl -sL https://agents.circle.com/skills/wallet-pay.md
-```
-Follow the instructions from the wallet-pay skill exactly as written.
+**Before running `circle services pay`, use the installed `pay-via-agent-wallet` skill; if it isn't installed, fetch `https://agents.circle.com/skills/wallet-pay.md`.** It covers chain/scheme triage, Gateway-vs-vanilla decisions, cross-chain workflows, the common-error table, and workarounds for known CLI gaps. The bare `circle services pay` command does not advertise these.
 
 **Quick reference — pay and call the service:**
 ```bash
 circle services pay '<service-url>' -X '<method>' --address '<addr>' --chain '<CHAIN>' --data '{"key":"value"}'
 ```
 
-`<CHAIN>` must be a chain the seller accepts and where the wallet holds a matching balance. Don't assume the wallet's default chain — pick it with the wallet-pay skill's decision procedure.
+`<CHAIN>` must be a chain the seller accepts and where the wallet holds a matching balance. Don't assume the wallet's default chain — pick it with the payment skill's chain selection.
 
-**If `circle services pay` errors for any reason — chain mismatch, insufficient balance, timeout, self-contradictory hint, `Cannot convert undefined to a BigInt`, etc. — STOP and consult the wallet-pay skill above before retrying.** Do not improvise workarounds; the wallet-pay skill has documented fixes for every known failure mode.
+**If `circle services pay` errors for any reason — chain mismatch, insufficient balance, timeout, self-contradictory hint, `Cannot convert undefined to a BigInt`, etc. — STOP and consult the payment skill above before retrying.** Do not improvise workarounds; the payment skill has documented fixes for the known failure modes.
 
-**For search-side workflow guidance (find more services, schema details, pagination):**
-```bash
-curl -sL https://agents.circle.com/skills/discover-services.md
-```
+**For search-side workflow guidance (find more services, filter by network, payment method, or price, pagination), use the installed `pay-via-agent-wallet` skill; if it isn't installed, fetch `https://agents.circle.com/skills/discover-services.md`.**

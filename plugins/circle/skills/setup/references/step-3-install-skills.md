@@ -1,6 +1,6 @@
 Save Circle's official skills onto the user's machine so the agent has sticky, local guidance in every future session — without re-fetching this setup doc each time.
 
-**The agent should run this so that the user can use the Circle CLI without having to install the skills manually.**
+**Before running the install, tell the user what it installs:** Circle's official skills from `https://github.com/circlefin/skills`, installed for this host so they load in every future session. They include the agent-wallet skills this setup uses (`use-circle-cli`, `use-agent-wallet`, `fund-agent-wallet`, `pay-via-agent-wallet`, `agent-wallet-policy`) and Circle's developer skills (USDC, wallets, bridging, Arc). If the user does not want them installed, skip to Step 4; the later steps say which page to fetch when a skill isn't installed.
 
 Pick the command matching the host (`<tool>` is one of `claude-code`, `cursor`, `codex`, `opencode`, `amp`, or another tool name supported by the open `skills` registry):
 

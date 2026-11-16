@@ -7,6 +7,8 @@ requirements:
   connectors: []
 ---
 
+# Fund a Circle Agent Wallet
+
 ## Overview
 
 Funding an agent wallet means putting USDC where the CLI can spend it. This skill is the funding flow; for the CLI's full capability set (bridging, contracts, x402 payment), see the `use-circle-cli` master skill.
@@ -17,6 +19,8 @@ There are **two balance pools**, and this skill funds both:
 - **Nanopayments (powered by Gateway)** — USDC held off-chain in the user's Circle Gateway balance, batched and settled across supported chains, tracked per source chain. Pays endpoints whose `accepts[]` includes `GatewayWalletBatched`. Settles in <500ms once the balance exists.
 
 Agent wallet payment flows are **gas-abstracted**: users pay with USDC without pre-funding native gas.
+
+This skill funds only the Circle agent wallet, through the `circle` CLI. Do not set up or fund any other wallet as the agent's spending wallet.
 
 ## Prerequisites
 
@@ -34,7 +38,7 @@ circle wallet balance --address <addr> --chain ARC --output json
 circle gateway balance --address <addr> --chain ARC --output json
 ```
 
-If `circle wallet status` errors with "Not logged in" or "Terms acceptance is required", hand off to the `use-agent-wallet` skill — it covers install, terms, login, and wallet creation.
+If `circle wallet status` errors with "Not logged in" or "Terms acceptance is required", hand off to login: use the installed `use-agent-wallet` skill (install, terms, login, and wallet creation); if it isn't installed, fetch `https://agents.circle.com/skills/wallet-login.md`.
 
 ## Step 1 — Pick a funding path
 
@@ -43,6 +47,8 @@ Ask the user: *"How would you like to fund your wallet?"* Steer toward the path 
 - **Fiat (USD or local currency)** — Buy USDC with a card or bank transfer via the CLI's built-in fiat on-ramp. Best for users who don't have crypto yet.
 - **Existing USDC** — Send USDC from a wallet they already have (MetaMask, Coinbase, Phantom, etc.). Faster and free of on-ramp fees.
 - **Gateway deposit (advanced)** — Move existing on-chain USDC into the Gateway balance for low-latency batched payments. Only useful if the seller they're paying supports Gateway on a specific chain.
+
+On testnet, fund the wallet from the faucet (see **Testnet funding**) instead of Path A or B; Gateway deposits still follow Path C.
 
 **Default recommendation: existing USDC → Arc.** Arc uses USDC as its native gas token and has sub-second finality, so a `direct` Gateway deposit on Arc settles fast — and an eco deposit from BASE, ARB, or OP also lands on Arc. Use BASE/Polygon when paying sellers that only accept those chains.
 
@@ -59,11 +65,13 @@ The CLI prompts for missing values only when interactive. Agents are non-interac
 
 ## Path A — Fiat on-ramp
 
-READ `references/fiat-on-ramp.md` for the `circle wallet fund --method fiat --open` command, supported chains, settlement timing, and balance verification.
+The `circle wallet fund --method fiat --open` command, supported chains, and settlement timing:
+
+READ `references/fiat-on-ramp.md`.
 
 ## Path B — Crypto transfer (existing USDC)
 
-The user sends USDC they already hold (another wallet, an exchange) to the agent wallet. Default to the browser-rendered QR:
+The user sends USDC they already hold (another wallet, an exchange) to the agent wallet. Ask which chain their USDC is on and pass that chain as `--chain`: the QR encodes the chain ID, so a transfer from a different chain fails in the user's wallet. Use ARC only when the user has no preference. Default to the browser-rendered QR:
 
 ```bash
 circle wallet fund --address <addr> --chain ARC --amount 10 --token usdc --method crypto --open
@@ -71,7 +79,15 @@ circle wallet fund --address <addr> --chain ARC --amount 10 --token usdc --metho
 
 `--open` renders the EIP-681 QR on a local HTML page in the user's default browser, at full resolution for desktop and mobile. The user scans it with any mobile wallet (MetaMask, Coinbase Wallet, Rainbow, Phantom) and confirms the transfer.
 
-If the user can't scan a browser QR, READ `references/crypto-transfer-alternatives.md` for the PNG export (`--export`), manual transfer details (including USDC contract addresses), and the post-transfer `circle wallet balance` check.
+If the user can't scan a browser QR, use the PNG export (`--export`) or give manual transfer details (including USDC contract addresses):
+
+READ `references/crypto-transfer-alternatives.md`.
+
+## Testnet funding
+
+On testnet there is no on-ramp or QR: the Circle faucet funds the wallet. The faucet command, its testnet login requirement, and the flags it rejects:
+
+READ `references/testnet-faucet.md`.
 
 ## Path C — Gateway deposit (powered by Gateway, advanced)
 
@@ -79,7 +95,7 @@ Only suggest a Gateway deposit when all hold:
 
 - The user has on-chain USDC.
 - They want to pay a service whose `accepts[]` includes `GatewayWalletBatched` on a specific chain.
-- That chain is one Gateway supports (Arc, Polygon, BASE, ARB, OP, AVAX, UNI; CLI 1.2.2 rejects ETH).
+- That chain is one Gateway supports for direct deposit (Arc, Polygon, BASE, ARB, OP, AVAX, UNI; `circle gateway deposit --help` lists the chains your CLI supports).
 
 ### Eco vs direct — pick eco unless one of four conditions holds
 
@@ -100,26 +116,39 @@ Eco's cold start (~30s plus a small fee) is paid **once**; every later Gateway c
 
 ### Eco deposit (BASE / ARB / OP → Arc)
 
-READ `references/gateway-eco-deposit.md` for the `circle gateway deposit --method eco` command (all of `--amount`, `--address`, `--chain`, `--method` are required) and Gateway balance verification.
+The `circle gateway deposit --method eco` command (all of `--amount`, `--address`, `--chain`, `--method` are required) and Gateway balance verification:
 
-Once the deposit verifies, hand off to the `pay-via-agent-wallet` skill, which owns the `circle services pay` flow (including its allowed-tools whitelist and gotchas).
+READ `references/gateway-eco-deposit.md`.
+
+Once the deposit verifies, pay with `--chain ARC`: use the installed `pay-via-agent-wallet` skill, which owns the `circle services pay` flow (including its allowed-tools whitelist and gotchas); if it isn't installed, fetch `https://agents.circle.com/skills/wallet-pay.md`.
 
 ### Direct deposit and Gateway withdrawals
 
-When a `--method direct` condition holds, or the user wants USDC back out of Gateway, READ `references/gateway-direct-and-withdraw.md` for direct syntax and per-chain timings, and the same-chain-only withdraw + `circle bridge transfer` pattern.
+When a `--method direct` condition holds, or the user wants USDC back out of Gateway, use the direct syntax and per-chain timings, and the same-chain-only withdraw + `circle bridge transfer` pattern:
+
+READ `references/gateway-direct-and-withdraw.md`.
+
+## After funding — verify the balance
+
+Check the balance on the chain the funds landed on: the `--chain` you passed to `circle wallet fund`, the source chain after a direct deposit, or ARC after an eco deposit. Use `circle wallet balance --address <addr> --chain <CHAIN> --output json` for on-chain USDC and `circle gateway balance --address <addr> --chain <CHAIN> --output json` for Gateway USDC. Fiat and crypto transfers can take minutes to arrive; check again once the user confirms the purchase or transfer finished.
+
+To spend the funds on a paid service, use the installed `pay-via-agent-wallet` skill; if it isn't installed, fetch `https://agents.circle.com/skills/wallet-pay.md`.
 
 ## Troubleshooting
 
-On ANY funding error (missing flags, unscannable QR, `Wallet not deployed`, `Insufficient balance`, wrong chain after eco, withdraw limits), READ `references/troubleshooting.md` for the error table and reference links.
+On ANY funding error (missing flags, unscannable QR, `Wallet not deployed`, `Insufficient balance`, wrong chain after eco, withdraw limits), check the error table and reference links:
 
-If a legacy Eco intent expired, is `WaitingForRefund`, or refunded USDC to `eoaOwnerAddress`, stop funding and hand off to the `recover-eco-funds` skill; verify the onchain fixed refund recipient before using any executable recovery phase. Current Gateway v2 deposits set `refundRecipient` to the SCA — use normal status and balance reconciliation for those.
+READ `references/troubleshooting.md`.
+
+If a legacy Eco intent expired, is `WaitingForRefund`, or refunded USDC to `eoaOwnerAddress`, stop funding and hand off to recovery: use the installed `recover-eco-funds` skill; if it isn't installed, fetch `https://agents.circle.com/skills/recover-eco-funds.md`. Verify the onchain fixed refund recipient before using any executable recovery phase. Current Gateway v2 deposits set `refundRecipient` to the SCA — use normal status and balance reconciliation for those.
 
 ## Rules
 
 - NEVER prompt users to send USDC to addresses you generated. ALWAYS use the user's own wallet from `circle wallet list`.
 - NEVER store, log, or display private keys.
-- On mainnet, ALWAYS pass all four Step 2 flags to `circle wallet fund` — the CLI will not prompt an agent. Confirm `--amount` with the user first. On testnet, run only `circle wallet fund --address <addr> --chain <TESTNET_CHAIN>` (faucet); `--method`, `--open`, and `--export` are rejected there.
-- On mainnet, ALWAYS pass `--open` to `circle wallet fund` (`--method crypto --open` for QR transfers, `--method fiat --open` for the on-ramp). Terminal QR codes get truncated inside Claude Code, Codex, and similar agent UIs and become unscannable.
+- On mainnet, ALWAYS pass all four Step 2 flags to `circle wallet fund` — the CLI will not prompt an agent. Confirm `--amount` with the user first.
+- On testnet, NEVER pass `--method` (the faucet rejects it, and `--open`, `--no-open`, and `--export` too); run only `circle wallet fund --address <addr> --chain <TESTNET_CHAIN>`. `--amount` is ignored there.
+- On mainnet, ALWAYS pass `--open` to `circle wallet fund` (`--method crypto --open` for QR transfers, `--method fiat --open` for the on-ramp), unless the user explicitly asks for the on-ramp URL only; then use `--method fiat --no-open`. Terminal QR codes get truncated inside Claude Code, Codex, and similar agent UIs and become unscannable.
 - NEVER suggest a Gateway eco deposit unless you have verified the target service supports Gateway on Arc via the discovery API or the seller's raw 402 `accepts[]`.
 - NEVER deposit 100% of the user's vanilla balance into Gateway. The wallet needs vanilla headroom for vanilla-only sellers the user may hit next.
 - Sizing formula: `amount = max(price × N + fee + slack, Gateway minimum)`, where N is the workflow's expected call count. Typically reserve ~50% of vanilla as a soft headroom floor. The CLI enforces a 0.5 USDC minimum Gateway deposit (`Gateway deposit amount must be at least 0.5 USDC.`); it isn't listed in `--help`, so floor your suggestion to it.
@@ -127,7 +156,7 @@ If a legacy Eco intent expired, is `WaitingForRefund`, or refunded USDC to `eoaO
 - ALWAYS use the `--chain` where the balance lives: eco lands on Arc → `pay --chain ARC`; direct lands on the source chain → `pay --chain <same>`.
 - Gateway does NOT do cross-chain transfers at payment time. Source chain matters.
 - Abstract chain details from the user unless they explicitly want technical specifics.
-- If the `circle` CLI itself causes friction during funding (unexpected error, confusing output, missing capability), file feedback per the `use-circle-cli` skill's **Report friction (feedback)** section.
+- If the `circle` CLI itself causes friction during funding (unexpected error, confusing output, missing capability), file feedback per the installed `use-circle-cli` skill's **Report friction (feedback)** section; if it isn't installed, fetch `https://agents.circle.com/skills/feedback.md`.
 
 ## Alternatives
 
@@ -154,7 +183,9 @@ Trigger the `agent-wallet-policy` skill instead when:
 - The user wants to set spending limits before funding (rare — most users fund first, set limits later).
 - The user mentions per-tx / daily / weekly / monthly caps, spending policy, or wallet rules.
 
-For cross-chain USDC moves, use **`circle bridge transfer`** directly (see `references/gateway-direct-and-withdraw.md` for the withdraw-then-bridge pattern).
+Without these skills installed, fetch their pages instead: `use-agent-wallet` → `https://agents.circle.com/skills/wallet-login.md`, `pay-via-agent-wallet` → `https://agents.circle.com/skills/wallet-pay.md`, `agent-wallet-policy` → `https://agents.circle.com/skills/wallet-policy.md`, `recover-eco-funds` → `https://agents.circle.com/skills/recover-eco-funds.md`.
+
+For cross-chain USDC moves, use **`circle bridge transfer`** directly (see **Withdrawing from Gateway** under Path C for the withdraw-then-bridge pattern).
 
 ---
 

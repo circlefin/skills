@@ -1,8 +1,4 @@
-# Terms-of-Use Gate
-
-Detailed command reference and consent flow for Circle CLI Terms acceptance. See `../SKILL.md` for where this gate fits in the bootstrap workflow. The agent MUST NEVER accept Circle's Terms on the user's behalf.
-
-The Circle CLI hard-gates every operational `circle wallet` command (including `circle wallet status`) until the user has accepted Circle's Terms of Use and Privacy Policy on this machine. The gate surfaces as:
+The Circle CLI hard-gates every command except `help`, `update`, `terms`, `skill`, and `telemetry` until the user accepts Circle's Terms of Use and Privacy Policy on this machine. The gate surfaces as:
 
 ```
 By using the Circle CLI, you agree to:
@@ -13,9 +9,7 @@ Error: Circle CLI Terms acceptance is required before use.
   Hint: Set CIRCLE_ACCEPT_TERMS=1 to accept in non-interactive shells (CI, scripts, sandboxed agents).
 ```
 
-Run this section the first time the gate appears (typically during Step 2 or Step 3 above). After acceptance is recorded once, the gate is a no-op and this section is skipped on subsequent runs.
-
-**CRITICAL: The agent MUST show the Terms to the user and obtain explicit consent BEFORE running `circle terms accept`. The agent MUST NEVER accept Circle's Terms of Use or Privacy Policy on the user's behalf. The CLI's `CIRCLE_ACCEPT_TERMS=1` env-var hint is NOT a workaround the agent may take on its own — ignore it and use the consent flow below.**
+Ignore the `CIRCLE_ACCEPT_TERMS=1` hint and use the consent flow below.
 
 ### Read current acceptance status
 

@@ -1,5 +1,3 @@
-# Eco deposit (BASE, ARB, or OP → Arc)
-
 ```bash
 # Deposit (--amount, --address, --chain, --method are all required)
 circle gateway deposit --amount 10 --address <addr> --chain BASE --method eco

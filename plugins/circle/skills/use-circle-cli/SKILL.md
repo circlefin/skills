@@ -117,7 +117,9 @@ Dedicated skills carry the gotchas and decision trees (and, for `pay-via-agent-w
 
 ## Report friction (feedback)
 
-File feedback with `circle feedback submit` per the feedback rule below. READ `references/cli-operations.md` for triggers, categories, guardrails, and the `--recent-commands` enrichment.
+File feedback with `circle feedback submit`: proactively when the CLI itself causes friction (per the feedback rule below), and whenever the user asks to send feedback. The reference covers when to submit, what never to include, the flags, and what to tell the user.
+
+READ `references/feedback.md`.
 
 ## Rules
 
@@ -130,11 +132,13 @@ File feedback with `circle feedback submit` per the feedback rule below. READ `r
 - Treat the CLI as the source of truth for the user's wallet state. Don't infer balances or transaction status — query the CLI fresh.
 - Default to mainnet for the agent wallet flow unless the user explicitly requests testnet. Spending policy is mainnet-only.
 - For routine permissionless tasks the user has already asked for, act first and summarize after — don't ask for re-confirmation on routine read-only operations like `wallet balance` or `services search`.
-- PROACTIVELY file feedback with `circle feedback submit` (pick one `--category`: `BUG`, `QUESTION`, or `FEEDBACK`) when the CLI itself causes friction — an unexpected error, output that contradicts `--help`, confusing output, or a missing capability. Don't file for user mistakes or expected validation errors. Feedback requires a mainnet session; never force a login just to submit.
+- PROACTIVELY file feedback with `circle feedback submit` (pick one `--category`: `BUG`, `QUESTION`, or `FEEDBACK`) when the CLI itself causes friction — an unexpected error, output that contradicts `--help`, confusing output, or a missing capability. Don't file for user mistakes or expected validation errors. Feedback requires a mainnet session; without one, ask the user whether to log in instead of deciding for them.
 
 ## Staying current
 
-Surface update guidance when relevant — start of session, after a long gap, or when a command behaves unexpectedly. `circle --version` shows update notices; `circle update --yes` updates the CLI; `circle skill update --tool <tool>` updates installed skills. On `VERSION_BLOCKED`, ask the user to update the CLI, then retry. Updates mutate the user's system — ask before running them, never run them unprompted. READ `references/cli-operations.md` for the exact commands, fallbacks, and `VERSION_BLOCKED` details.
+Surface update guidance when relevant — start of session, after a long gap, or when a command behaves unexpectedly. `circle --version` shows update notices; `circle update --yes` updates the CLI; `circle skill update --tool <tool>` updates installed skills. On `VERSION_BLOCKED`, ask the user to update the CLI, then retry. Updates mutate the user's system — ask before running them, never run them unprompted. The reference has the exact commands, fallbacks, and `VERSION_BLOCKED` details.
+
+READ `references/staying-current.md`.
 
 ## Reference Links
 

@@ -6,6 +6,8 @@ requirements:
   connectors: []
 ---
 
+# Circle Agent Wallet: Install, Login, and Wallets
+
 ## Overview
 
 The Circle CLI (`@circle-fin/cli`, command `circle`) provides a programmatic agent wallet — a non-custodial USDC wallet for AI agents to authenticate, hold balances, and pay for x402 services on Circle's marketplace. This skill bootstraps that wallet: install check, terms acceptance, login, wallet creation, and status. After bootstrap, paying, funding, and spending policy hand off to dedicated skills; for the CLI's full capability set, see the `use-circle-cli` master skill.
@@ -27,7 +29,7 @@ which circle || command -v circle
 circle --version
 ```
 
-If `circle` is not installed, or `circle --version` prints an update notice, READ `references/install-and-login.md` for installation and update-notice guidance.
+If `circle` is not installed, install it with `npm install -g @circle-fin/cli`. `circle --version` also prints an update notice when npm has a newer `@circle-fin/cli` (it never blocks). If one prints, suggest `npm install -g @circle-fin/cli@latest`, but only when it is relevant (session start, or unexpected output), not on every command.
 
 ### Step 2 — Check session status
 
@@ -37,25 +39,29 @@ circle wallet status
 
 Possible outcomes:
 
-- **Logged in** — output shows wallet type (`agent`) and separate, independent `mainnet` and `testnet` sections, each with its own email, status, and expiry. Check the section for the network you need. Tell the user "You're already logged in as `<email>`. Continue with this session?" and skip to Step 4.
+- **Logged in** — output shows wallet type (`agent`) and separate, independent `mainnet` and `testnet` sections, each with its own email, status, and expiry. Check the section for the network you need. Tell the user "You're already logged in as `<email>`. Continue with this session?" If yes, skip to Step 4. If they want a different account, run `circle wallet logout` and go to Step 3.
 - **Not logged in** — output is `Error: Not logged in with type "agent". Run 'circle wallet login <email> --type agent' to authenticate (use --init for non-interactive environments).` Treat a `Not logged in` section for the network you need the same way. Proceed to Step 3.
 - **Terms not accepted** — output is `Error: Circle CLI Terms acceptance is required before use.` Stop and complete the **Terms-of-Use Gate** below.
 
+Do NOT use `circle wallet list` to check whether the user is logged in: it can succeed with an empty result while logged out.
+
 ## Step 3 — Login (email + OTP)
 
-Ask the user for their email, request an OTP with `--init`, complete login with the returned request ID and the OTP the user pastes (e.g., `ABC-123456`), then verify with `circle wallet status`.
+Ask the user for their email, request an OTP with `--init`, complete login with the returned request ID and the OTP the user pastes (e.g., `ABC-123456`), then verify with `circle wallet status`. The commands, expected outputs, OTP format, failure handling, and logout are below.
 
-READ `references/install-and-login.md` for the exact commands, expected outputs, OTP format, failure handling, and logout / account switching.
+READ `references/login.md`.
 
 ## Step 4 — Check or create the agent wallet
 
 **`--chain` is REQUIRED for `circle wallet list` and `circle wallet balance`.** Use ARC unless the user names another chain. The first login for an email already provisions an agent wallet on every supported EVM chain, so listing normally finds one; run `circle wallet create` only if none exist or the user explicitly wants another.
 
-READ `references/wallet-management.md` for the `circle wallet list`, `circle wallet create`, and `circle wallet balance` commands and their JSON output.
+The `circle wallet list`, `circle wallet create`, and `circle wallet balance` commands and their JSON output:
+
+READ `references/wallet-management.md`.
 
 ## Step 5 — Check wallet balance
 
-Check the balance for each saved address. If it is 0 USDC and the user wants to pay for services, hand off to the `fund-agent-wallet` skill (fiat on-ramp, direct transfer with a QR code, and Gateway deposits). If the user only wants to verify state, stop here — bootstrap is complete.
+Check the balance for each saved address with the `circle wallet balance` command from Step 4. If it is 0 USDC and the user wants to pay for services, hand off to the `fund-agent-wallet` skill (fiat on-ramp, direct transfer with a QR code, and Gateway deposits). If the user only wants to verify state, stop here — bootstrap is complete.
 
 ## After bootstrap
 
@@ -63,17 +69,20 @@ Suggest natural follow-ups like funding, paid-service search, or a spending limi
 
 ## Terms-of-Use Gate
 
-The Circle CLI hard-gates every command except `help`, `update`, `terms`, `skill`, and `telemetry` (so including `circle wallet status`) until the user accepts Circle's Terms of Use and Privacy Policy on this machine. Run the gate the first time it appears (typically in Step 2 or Step 3); once acceptance is recorded, it no longer appears.
+Circle's Terms of Use and Privacy Policy must be accepted on this machine before most `circle` commands run, including `circle wallet status`. Run the gate the first time it appears (typically in Step 2 or Step 3); once acceptance is recorded, it no longer appears.
 
 **CRITICAL: Show the Terms to the user and get explicit consent BEFORE running `circle terms accept`. NEVER accept on the user's behalf, and ignore the CLI's `CIRCLE_ACCEPT_TERMS=1` env-var hint — it is not a workaround the agent may take on its own.**
 
-READ `references/terms-of-use.md` for the gate's exact error text, the `circle terms show` / `circle terms show --init` / `circle terms accept` / `circle terms reset` commands, and the required show-Terms-and-request-consent flow.
+The gate's exact error text, the `circle terms show` / `circle terms show --init` / `circle terms accept` / `circle terms reset` commands, and the required show-Terms-and-request-consent flow:
+
+READ `references/terms-of-use.md`.
 
 ## Rules
 
 ### Security
 
 - NEVER guess or hardcode the user's email address for agent wallet login.
+- NEVER put a value the user typed into a command without checking it first, and ALWAYS put it in single quotes. Require: email matches `^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$`; one-time code matches `^(?:[A-Z0-9]{3}-)?[0-9]{6}$`; request ID is a UUID (`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`). These formats exclude single quotes and shell metacharacters. If a value fails, do not escape or fix it: ask the user to re-enter it.
 - OTP codes the user provides during an active login are safe to handle — accept them in chat, use them immediately, and do not retain or reuse them afterward.
 - NEVER fetch the OTP yourself through email or messaging tools (e.g., Gmail or Slack via MCP), even if they are connected. The user reads it and pastes it.
 - NEVER include real private keys, API keys, or other persistent secrets in skill files or persist them anywhere.
@@ -91,11 +100,7 @@ READ `references/terms-of-use.md` for the gate's exact error text, the `circle t
 
 ## Reference Links
 
-- Installation and login (commands): `references/install-and-login.md`
-- Wallet management (list, create, balance): `references/wallet-management.md`
-- Terms-of-Use Gate (commands and consent flow): `references/terms-of-use.md`
 - Setup walkthrough (full bootstrap doc): https://agents.circle.com/skills/setup.md
-- Login flow detail: https://agents.circle.com/skills/wallet-login.md
 - CLI package on npm: `@circle-fin/cli`
 - Circle Developer Docs: https://developers.circle.com/llms.txt — Always read this when looking for source documentation on Circle products.
 

@@ -1,0 +1,8 @@
+{
+  "name": "recover-eco-funds-scripts",
+  "private": true,
+  "description": "Pinned runtime dependencies for the recover-eco-funds scripts. Install with: npm ci --prefix <SKILL_DIR> --ignore-scripts",
+  "dependencies": {
+    "viem": "2.31.3"
+  }
+}

@@ -1,20 +1,39 @@
 #!/usr/bin/env node
+// Check a legacy Eco intent onchain and print the `circle wallet execute`
+// commands that self-issue its permissionless Portal refund. The script never
+// submits: it reads chain state over JSON-RPC and the selected Agent Wallet from
+// the Circle API. Needs Node.js 20.18.2+ and the public @circle-fin/cli 1.2.3 or
+// newer (array and tuple ABI arguments as JSON), logged in with
+// `circle wallet login`.
 
 import {
+  CHAINS,
+  PROXY,
+  circleApi,
   freshIdempotencyKey,
-  isFailedTransaction,
+  isCreatorSca,
+  notEligibleExitCode,
+  refundDecision,
+  requireBackingEoaRecipient,
+  requireDeadlinePassed,
+  requireRecoverable,
+  rewardStatus,
+  savedIdempotencyKey,
   json,
-  loadCircleRuntime,
+  loadSession,
+  loadViem,
   parseArgs,
+  refuseProxyOverride,
   required,
   requireAddress,
   requireChainCode,
   requireChainId,
-  requireCircleChainId,
+  requireCliVersion,
   requireHex,
+  requireHexBytes,
   requireRpcUrl,
   requireSafePath,
-  resolveAgentWallet,
+  requireUint,
   rpc,
   rpcOrigin,
   safeErrorMessage,
@@ -22,28 +41,39 @@ import {
   writeEvidence,
 } from "./_shared.mjs";
 
+const MIN_CLI_VERSION = "1.2.3";
+const REWARD_TUPLE = "(uint64,address,address,uint256,(address,uint256)[])";
+const REFUND_SIGNATURE = `refund(uint64,bytes32,${REWARD_TUPLE})`;
+const VAULT_SIGNATURE = `intentVaultAddress(uint64,bytes,${REWARD_TUPLE})`;
+const FLAGS = new Set([
+  "_", "help", "h", "chain", "event-chain-id", "refund-chain-id", "event-rpc-url",
+  "refund-rpc-url", "sca", "event-portal", "portal", "creation-tx", "intent-hash",
+  "evidence-dir", "confirm-intent", "idempotency-key",
+]);
+
 const HELP = `Usage:
-  <circle-cli-repo>/node_modules/.bin/tsx scripts/eco-self-refund.mjs \\
-    --circle-cli-repo <path> --chain <Circle refund-chain code> \\
+  node scripts/eco-self-refund.mjs \\
+    --chain <Circle refund-chain code> \\
     --event-chain-id <id> --refund-chain-id <id> \\
     --event-rpc-url <url> --refund-rpc-url <url> \\
     --sca <address> --event-portal <address> --portal <address> \\
-    --creation-tx <hash> \\
-    --intent-hash <hash> [--evidence-dir <path>]
+    --creation-tx <hash> --intent-hash <hash> [--evidence-dir <path>]
 
-The default mode is read-only and simulates the exact refund calldata.
-Add --estimate-fee to verify refund-recipient ownership and include the Circle
-fee estimate in the approval preflight; this requires an active agent session.
+Read-only. Rebuilds the intent from IntentPublished, checks it onchain,
+verifies that the fixed refund recipient is the SCA's backing EOA, simulates the
+exact refund from the SCA, and prints the Circle ABI parser check and the
+\`circle wallet execute ... --estimate\` command. Nothing is submitted.
 
-To broadcast after explicit user approval, add:
-  --submit --confirm-intent <intent-hash> [--idempotency-key <uuid>]
-  --evidence-dir is required with --submit so the key is durable first.
+After the user approves the preflight and fee for this one intent, re-run with:
+  --confirm-intent <intent-hash> --evidence-dir <path> [--idempotency-key <uuid>]
+to save an idempotency key and print the single submit command and the
+verification queries. Pass --idempotency-key to reuse a saved key.
 
-If CIRCLE_PROXY_URL is set, inspect it and explicitly pass:
-  --allow-proxy-origin <scheme://trusted-host>
+Needs @circle-fin/cli ${MIN_CLI_VERSION} or newer and an active circle wallet login.
+Refuses to run while CIRCLE_PROXY_URL is set.
 
-Exit codes: 0 = requested mode completed, 1 = error or failed transaction,
-  2 = submit requested but safely refused before broadcast.
+Exit codes: 0 = done, 1 = error, 2 = --confirm-intent given but the intent is
+  not eligible for a refund (nothing printed to submit).
 `;
 
 const intentPublishedAbi = {
@@ -153,49 +183,110 @@ function normalizeReward(decoded) {
   };
 }
 
+// Single-quote a value for a printed shell command. Every value is validated
+// first, and this rejects anything outside the characters those values use.
+function quote(value) {
+  const text = String(value);
+  if (!/^[0-9A-Za-z[\]",-]+$/.test(text)) {
+    throw new Error(`Refusing to print an unexpected command value: ${text.slice(0, 80)}`);
+  }
+  return `'${text}'`;
+}
+
+// The reward tuple as the JSON array the Circle CLI takes for a tuple argument:
+// fields in ABI order, every integer as a quoted string.
+function rewardArgument(reward) {
+  return JSON.stringify([
+    requireUint(reward.deadline, "reward.deadline"),
+    requireAddress(reward.creator, "reward.creator"),
+    requireAddress(reward.prover, "reward.prover"),
+    requireUint(reward.nativeAmount, "reward.nativeAmount"),
+    reward.tokens.map(({ token, amount }) => [
+      requireAddress(token, "reward token"),
+      requireUint(amount, "reward token amount"),
+    ]),
+  ]);
+}
+
+async function verifyRecipientOwnership({ chain, testnet, sca, creator, viem }) {
+  const session = await loadSession(testnet);
+  if (!session) {
+    throw new Error(`No active Circle login for ${chain}. Run: circle wallet login <email>${testnet ? " --testnet" : ""}`);
+  }
+  const api = circleApi(`${PROXY}/proxy/${testnet ? "test" : "live"}`, session.userToken);
+  const query = new URLSearchParams({ pageSize: "50", blockchain: chain, address: sca });
+  const wallets = (await api("GET", `/v1/w3s/wallets?${query}`)).data?.wallets ?? [];
+  const wallet = wallets.find((candidate) => viem.isAddressEqual(candidate.address, sca));
+  if (!wallet) throw new Error(`${sca} is not one of your Agent Wallets on ${chain}.`);
+  const detail = await api("GET", `/v1/w3s/wallets/${encodeURIComponent(wallet.id)}`);
+  const reported = detail.data?.wallet?.eoaOwnerAddress;
+  const backingEoa = reported
+    ? requireAddress(reported, "Circle wallet eoaOwnerAddress")
+    : undefined;
+  return requireBackingEoaRecipient({ creator, sca, backingEoa });
+}
+
 async function main() {
-  const args = parseArgs(process.argv.slice(2), {
-    booleanFlags: ["submit", "estimate-fee", "help", "h"],
-  });
+  const args = parseArgs(process.argv.slice(2), { booleanFlags: ["help", "h"] });
   if (args.help || args.h) {
     process.stdout.write(HELP);
     return;
   }
+  const unknown = Object.keys(args).filter((name) => !FLAGS.has(name));
+  if (unknown.length > 0 || args._.length > 0) {
+    throw new Error(
+      `Unknown argument ${unknown.length > 0 ? `--${unknown[0]}` : args._[0]}. This script only prints commands; run it with --help.`,
+    );
+  }
 
-  const circleCliRepo = requireSafePath(required(args, "circle-cli-repo"), "--circle-cli-repo");
   const chain = requireChainCode(required(args, "chain").toUpperCase(), "--chain");
+  if (!CHAINS[chain]) throw new Error(`Unsupported chain ${chain}.`);
+  const [circleChainId, testnet] = CHAINS[chain];
   const eventRpcUrl = requireRpcUrl(required(args, "event-rpc-url"), "--event-rpc-url");
   const refundRpcUrl = requireRpcUrl(required(args, "refund-rpc-url"), "--refund-rpc-url");
   const eventChainId = requireChainId(required(args, "event-chain-id"), "--event-chain-id");
   const refundChainId = requireChainId(required(args, "refund-chain-id"), "--refund-chain-id");
+  if (BigInt(circleChainId) !== refundChainId) {
+    throw new Error(`Circle chain ${chain} uses EVM chain ID ${circleChainId}, not ${refundChainId}.`);
+  }
   const sca = requireAddress(required(args, "sca"), "--sca");
-  const eventPortal = requireAddress(
-    required(args, "event-portal"),
-    "--event-portal",
-  );
+  const eventPortal = requireAddress(required(args, "event-portal"), "--event-portal");
   const portal = requireAddress(required(args, "portal"), "--portal");
-  const creationTx = requireHex(
-    required(args, "creation-tx"),
-    32,
-    "--creation-tx",
-  );
-  const expectedIntent = requireHex(
-    required(args, "intent-hash"),
-    32,
-    "--intent-hash",
-  );
+  const creationTx = requireHex(required(args, "creation-tx"), 32, "--creation-tx");
+  const expectedIntent = requireHex(required(args, "intent-hash"), 32, "--intent-hash");
   const evidenceDir =
     typeof args["evidence-dir"] === "string"
       ? requireSafePath(args["evidence-dir"], "--evidence-dir")
       : undefined;
-  if (args.submit && !evidenceDir) {
+  const confirming = args["confirm-intent"] !== undefined;
+  if (confirming) {
+    const confirmedIntent = requireHex(required(args, "confirm-intent"), 32, "--confirm-intent");
+    if (confirmedIntent.toLowerCase() !== expectedIntent.toLowerCase()) {
+      throw new Error("--confirm-intent must exactly match --intent-hash after the user approves the preflight.");
+    }
+    if (!evidenceDir) {
+      throw new Error("--evidence-dir is required with --confirm-intent so the idempotency key is saved before the submit command is printed.");
+    }
+  }
+  // On confirm, reuse the key already saved for this intent so a re-run (after a
+  // timeout or lost context) prints the same single submit, never a second one.
+  const savedKey = confirming ? await savedIdempotencyKey(evidenceDir, expectedIntent) : undefined;
+  const passedKey = args["idempotency-key"] === undefined ? undefined : freshIdempotencyKey(args["idempotency-key"]);
+  if (savedKey && passedKey && savedKey.toLowerCase() !== passedKey.toLowerCase()) {
     throw new Error(
-      "--evidence-dir is required with --submit so the idempotency key is persisted before broadcast.",
+      "--idempotency-key does not match the key already saved for this intent in --evidence-dir. Use the saved key so the refund is submitted only once.",
+    );
+  }
+  const idempotencyKey = confirming ? (passedKey ?? savedKey ?? freshIdempotencyKey()) : passedKey;
+  if (confirming && savedKey && !passedKey) {
+    console.error(
+      "Reusing the idempotency key already saved for this intent in --evidence-dir. If its submit ended FAILED, DENIED or CANCELLED and the reward is still Funded, move its submission-intent file into a released/ folder in --evidence-dir and re-run for a new key.",
     );
   }
 
-  const runtime = await loadCircleRuntime(circleCliRepo);
-  requireCircleChainId(runtime, chain, refundChainId);
+  refuseProxyOverride();
+  const cliVersion = await requireCliVersion(MIN_CLI_VERSION);
+  const viem = await loadViem();
   const {
     decodeEventLog,
     decodeFunctionResult,
@@ -204,26 +295,18 @@ async function main() {
     encodePacked,
     formatUnits,
     keccak256,
-  } = runtime.viem;
+  } = viem;
 
   const observedEventChainId = BigInt(await rpc(eventRpcUrl, "eth_chainId", []));
-  const observedRefundChainId = BigInt(
-    await rpc(refundRpcUrl, "eth_chainId", []),
-  );
+  const observedRefundChainId = BigInt(await rpc(refundRpcUrl, "eth_chainId", []));
   if (observedEventChainId !== eventChainId) {
-    throw new Error(
-      `Event RPC chain ID ${observedEventChainId} does not match --event-chain-id ${eventChainId}.`,
-    );
+    throw new Error(`Event RPC chain ID ${observedEventChainId} does not match --event-chain-id ${eventChainId}.`);
   }
   if (observedRefundChainId !== refundChainId) {
-    throw new Error(
-      `Refund RPC chain ID ${observedRefundChainId} does not match --refund-chain-id ${refundChainId}.`,
-    );
+    throw new Error(`Refund RPC chain ID ${observedRefundChainId} does not match --refund-chain-id ${refundChainId}.`);
   }
 
-  const receipt = await rpc(eventRpcUrl, "eth_getTransactionReceipt", [
-    creationTx,
-  ]);
+  const receipt = await rpc(eventRpcUrl, "eth_getTransactionReceipt", [creationTx]);
   if (!receipt) throw new Error(`Creation transaction ${creationTx} was not found.`);
   if (BigInt(receipt.status) !== 1n) {
     throw new Error(`Creation transaction ${creationTx} did not succeed.`);
@@ -249,32 +332,22 @@ async function main() {
     (event) => event.intentHash.toLowerCase() === expectedIntent.toLowerCase(),
   );
   if (matches.length !== 1) {
-    throw new Error(
-      `Expected exactly one IntentPublished event for ${expectedIntent}; found ${matches.length}.`,
-    );
+    throw new Error(`Expected exactly one IntentPublished event for ${expectedIntent}; found ${matches.length}.`);
   }
 
   const event = matches[0];
   const destination = BigInt(event.destination);
-  const route = event.route;
+  const route = requireHexBytes(event.route, "IntentPublished route");
   const routeHash = keccak256(route);
   const reward = normalizeReward(event);
   const rewardHash = keccak256(
-    encodeAbiParameters(
-      [{ name: "reward", type: "tuple", components: rewardComponents }],
-      [reward],
-    ),
+    encodeAbiParameters([{ name: "reward", type: "tuple", components: rewardComponents }], [reward]),
   );
   const computedIntent = keccak256(
-    encodePacked(
-      ["uint64", "bytes32", "bytes32"],
-      [destination, routeHash, rewardHash],
-    ),
+    encodePacked(["uint64", "bytes32", "bytes32"], [destination, routeHash, rewardHash]),
   );
   if (computedIntent.toLowerCase() !== expectedIntent.toLowerCase()) {
-    throw new Error(
-      `Reconstructed intent ${computedIntent} does not match ${expectedIntent}.`,
-    );
+    throw new Error(`Reconstructed intent ${computedIntent} does not match ${expectedIntent}.`);
   }
 
   const portalCode = await rpc(refundRpcUrl, "eth_getCode", [portal, "latest"]);
@@ -282,233 +355,121 @@ async function main() {
     throw new Error(`No Portal bytecode exists at ${portal} on the refund chain.`);
   }
 
-  const statusCall = encodeFunctionData({
-    abi: portalAbi,
-    functionName: "getRewardStatus",
-    args: [expectedIntent],
-  });
-  const statusRaw = await rpc(refundRpcUrl, "eth_call", [
-    { to: portal, data: statusCall },
-    "latest",
-  ]);
-  const status = Number(
-    decodeFunctionResult({
-      abi: portalAbi,
-      functionName: "getRewardStatus",
-      data: statusRaw,
-    }),
-  );
-  const statusNames = ["Initial", "Funded", "Withdrawn", "Refunded"];
-  if (status < 0 || status > 3) {
-    throw new Error(`Unknown Eco reward status ${status}.`);
-  }
-  const terminalStatus = status === 2 || status === 3;
+  const call = async (to, abi, functionName, fnArgs = [], from) => {
+    const data = encodeFunctionData({ abi, functionName, args: fnArgs });
+    const raw = await rpc(refundRpcUrl, "eth_call", [{ ...(from ? { from } : {}), to, data }, "latest"]);
+    return decodeFunctionResult({ abi, functionName, data: raw });
+  };
 
-  const latestBlock = await rpc(refundRpcUrl, "eth_getBlockByNumber", [
-    "latest",
-    false,
-  ]);
+  const status = Number(await call(portal, portalAbi, "getRewardStatus", [expectedIntent]));
+  const { terminalStatus, statusName } = rewardStatus(status);
+
+  const latestBlock = await rpc(refundRpcUrl, "eth_getBlockByNumber", ["latest", false]);
   const refundTimestamp = BigInt(latestBlock.timestamp);
-  if (!terminalStatus && refundTimestamp < reward.deadline) {
-    throw new Error(
-      `Refund deadline has not passed: block=${refundTimestamp}, deadline=${reward.deadline}.`,
-    );
-  }
+  requireDeadlinePassed({ terminalStatus, refundTimestamp, deadline: reward.deadline });
 
-  const vaultCall = encodeFunctionData({
-    abi: portalAbi,
-    functionName: "intentVaultAddress",
-    args: [destination, route, reward],
-  });
-  const vaultRaw = await rpc(refundRpcUrl, "eth_call", [
-    { to: portal, data: vaultCall },
-    "latest",
-  ]);
-  const vault = decodeFunctionResult({
-    abi: portalAbi,
-    functionName: "intentVaultAddress",
-    data: vaultRaw,
-  });
+  const vault = await call(portal, portalAbi, "intentVaultAddress", [destination, route, reward]);
 
+  const nativeVaultBalance = BigInt(await rpc(refundRpcUrl, "eth_getBalance", [vault, "latest"]));
   const tokenBalances = [];
-  let recoverableBalance =
-    BigInt(await rpc(refundRpcUrl, "eth_getBalance", [vault, "latest"])) > 0n;
   for (const tokenReward of reward.tokens) {
-    const balanceCall = encodeFunctionData({
-      abi: erc20Abi,
-      functionName: "balanceOf",
-      args: [vault],
-    });
-    const balanceRaw = await rpc(refundRpcUrl, "eth_call", [
-      { to: tokenReward.token, data: balanceCall },
-      "latest",
-    ]);
-    const balance = BigInt(
-      decodeFunctionResult({
-        abi: erc20Abi,
-        functionName: "balanceOf",
-        data: balanceRaw,
-      }),
-    );
-    const recipientRaw = await rpc(refundRpcUrl, "eth_call", [
-      {
-        to: tokenReward.token,
-        data: encodeFunctionData({
-          abi: erc20Abi,
-          functionName: "balanceOf",
-          args: [reward.creator],
-        }),
-      },
-      "latest",
-    ]);
-    const recipientBalance = BigInt(
-      decodeFunctionResult({
-        abi: erc20Abi,
-        functionName: "balanceOf",
-        data: recipientRaw,
-      }),
-    );
-    if (balance > 0n) recoverableBalance = true;
-
+    const balance = BigInt(await call(tokenReward.token, erc20Abi, "balanceOf", [vault]));
+    const recipientBalance = BigInt(await call(tokenReward.token, erc20Abi, "balanceOf", [reward.creator]));
     let decimals;
     let symbol;
     try {
-      const data = encodeFunctionData({
-        abi: erc20Abi,
-        functionName: "decimals",
-      });
-      const raw = await rpc(refundRpcUrl, "eth_call", [
-        { to: tokenReward.token, data },
-        "latest",
-      ]);
-      decimals = Number(
-        decodeFunctionResult({
-          abi: erc20Abi,
-          functionName: "decimals",
-          data: raw,
-        }),
-      );
+      decimals = Number(await call(tokenReward.token, erc20Abi, "decimals"));
     } catch {
       decimals = undefined;
     }
     try {
-      const data = encodeFunctionData({
-        abi: erc20Abi,
-        functionName: "symbol",
-      });
-      const raw = await rpc(refundRpcUrl, "eth_call", [
-        { to: tokenReward.token, data },
-        "latest",
-      ]);
-      symbol = decodeFunctionResult({
-        abi: erc20Abi,
-        functionName: "symbol",
-        data: raw,
-      });
+      symbol = await call(tokenReward.token, erc20Abi, "symbol");
     } catch {
       symbol = undefined;
     }
-
+    const format = (value) => (decimals === undefined ? undefined : formatUnits(value, decimals));
     tokenBalances.push({
       token: tokenReward.token,
       symbol,
       decimals,
       nominalAmountAtomic: tokenReward.amount,
-      nominalAmount:
-        decimals === undefined ? undefined : formatUnits(tokenReward.amount, decimals),
+      nominalAmount: format(tokenReward.amount),
       vaultBalanceAtomic: balance,
-      vaultBalance: decimals === undefined ? undefined : formatUnits(balance, decimals),
+      vaultBalance: format(balance),
       recipientBalanceAtomic: recipientBalance,
-      recipientBalance:
-        decimals === undefined ? undefined : formatUnits(recipientBalance, decimals),
+      recipientBalance: format(recipientBalance),
     });
   }
-  if (!terminalStatus && !recoverableBalance) {
-    throw new Error(
-      `The computed vault ${vault} has no recoverable reward balance on the selected refund chain.`,
-    );
-  }
+  requireRecoverable({
+    terminalStatus,
+    vault,
+    nativeVaultBalance,
+    tokenVaultBalances: tokenBalances.map(({ vaultBalanceAtomic }) => vaultBalanceAtomic),
+  });
 
-  const nativeVaultBalance = BigInt(
-    await rpc(refundRpcUrl, "eth_getBalance", [vault, "latest"]),
-  );
   const callData = encodeFunctionData({
     abi: portalAbi,
     functionName: "refund",
     args: [destination, routeHash, reward],
   });
-  const simulation = terminalStatus
-    ? "skipped-terminal-status"
-    : await rpc(refundRpcUrl, "eth_call", [
-        { from: sca, to: portal, data: callData },
-        "latest",
-      ]);
-  if (!terminalStatus && simulation !== "0x") {
-    throw new Error(`Unexpected Eco refund simulation result ${simulation}.`);
+  let simulation = "skipped-terminal-status";
+  if (!terminalStatus) {
+    simulation = await rpc(refundRpcUrl, "eth_call", [{ from: sca, to: portal, data: callData }, "latest"]);
+    if (simulation !== "0x") throw new Error(`Unexpected Eco refund simulation result ${simulation}.`);
   }
 
-  let circleContext;
-  const creator = reward.creator.toLowerCase();
-  let recipientOwnership =
-    creator === sca.toLowerCase()
-      ? { checked: true, match: "sca", backingEoa: undefined }
-      : { checked: false, match: undefined, backingEoa: undefined };
-  let estimatedFee;
-  if (
-    !terminalStatus &&
-    recipientOwnership.match !== "sca" &&
-    (args["estimate-fee"] || args.submit)
-  ) {
-    const resolved = await resolveAgentWallet(runtime, chain, sca, args);
-    const walletDetail = await resolved.client.getWallet(
-      resolved.env.userToken,
-      resolved.wallet.id,
-    );
-    const backingEoa = walletDetail.eoaOwnerAddress
-      ? requireAddress(
-          walletDetail.eoaOwnerAddress,
-          "Circle wallet eoaOwnerAddress",
-        )
-      : undefined;
-    const match =
-      creator === backingEoa?.toLowerCase() ? "backing-eoa" : undefined;
-    if (!match) {
-      throw new Error(
-        `Refusing to spend gas: fixed refund recipient ${reward.creator} is neither Circle wallet SCA ${resolved.wallet.address} nor its verified backing EOA${backingEoa ? ` ${backingEoa}` : " (not returned by Circle)"}.`,
-      );
-    }
-    const feeEstimate = await resolved.client.estimateContractExecutionFee(
-      resolved.env.userToken,
-      {
-        walletId: resolved.wallet.id,
-        sourceAddress: resolved.wallet.address,
-        blockchain: resolved.wallet.blockchain,
-        contractAddress: portal,
-        callData,
-      },
-    );
-    recipientOwnership = { checked: true, match, backingEoa };
-    estimatedFee = runtime.pickSubmittedFee(feeEstimate);
-    circleContext = resolved;
+  const creatorIsSca = isCreatorSca({ creator: reward.creator, sca });
+  let recipientOwnership = creatorIsSca
+    ? { checked: true, match: "sca", backingEoa: undefined }
+    : { checked: false, match: undefined, backingEoa: undefined };
+  if (!terminalStatus && !creatorIsSca) {
+    recipientOwnership = await verifyRecipientOwnership({
+      chain,
+      testnet,
+      sca,
+      creator: reward.creator,
+      viem,
+    });
+  }
+  const { eligible, action, refusedReason } = refundDecision({
+    terminalStatus,
+    statusName,
+    creatorIsSca,
+    creator: reward.creator,
+    recipientOwnership,
+  });
+
+  let commands;
+  if (eligible) {
+    const tuple = [
+      quote(requireUint(destination, "destination")),
+      quote(requireHex(routeHash, 32, "routeHash")),
+      quote(rewardArgument(reward)),
+    ].join(" ");
+    const target = `--contract ${quote(portal)} --address ${quote(sca)} --chain ${quote(chain)}`;
+    const execute = `circle wallet execute "${REFUND_SIGNATURE}" ${tuple} ${target}`;
+    const readOn = (address) => `--contract ${quote(address)} --chain ${quote(chain)}`;
+    commands = {
+      parserCheck: `circle contract query "${VAULT_SIGNATURE}" ${quote(destination)} ${quote(route)} ${quote(rewardArgument(reward))} ${readOn(portal)}`,
+      parserCheckExpect: `outputData ends in ${vault.slice(2).toLowerCase()}`,
+      estimate: `${execute} --estimate`,
+      submit: confirming ? `${execute} --idempotency-key ${quote(idempotencyKey)} --output json` : undefined,
+      verify: [
+        `circle contract query "getRewardStatus(bytes32)" ${quote(expectedIntent)} ${readOn(portal)}`,
+        ...reward.tokens.flatMap(({ token }) => [
+          `circle contract query "balanceOf(address)" ${quote(vault)} ${readOn(token)}`,
+          `circle contract query "balanceOf(address)" ${quote(reward.creator)} ${readOn(token)}`,
+        ]),
+      ],
+    };
   }
 
   const preflight = {
     operation: "eco-self-refund",
-    mode: args.submit ? "submit-requested" : "read-only",
-    action: terminalStatus
-      ? "stop-no-broadcast"
-      : recipientOwnership.match === "sca"
-        ? "stop-current-direct-to-sca"
-        : !recipientOwnership.checked || estimatedFee === undefined
-          ? "diagnostic-only-add-estimate-fee"
-          : "eligible-after-approval",
-    refusedReason: terminalStatus
-      ? `Intent reward status is already ${statusNames[status]}.`
-      : recipientOwnership.match === "sca"
-        ? `Fixed refund recipient ${reward.creator} is the selected Circle wallet SCA. This is the current direct-to-SCA flow; reconcile balances or escalate instead.`
-        : !recipientOwnership.checked || estimatedFee === undefined
-          ? "Recipient ownership and fee were not verified; re-run with --estimate-fee before requesting approval."
-          : undefined,
+    mode: confirming ? "confirm" : "preflight",
+    action,
+    refusedReason,
+    cliVersion,
     circleChain: chain,
     eventChainId,
     refundChainId,
@@ -523,7 +484,7 @@ async function main() {
     routeHash,
     rewardHash,
     destination: destination.toString(),
-    rewardStatus: { value: status, name: statusNames[status] },
+    rewardStatus: { value: status, name: statusName },
     reward: {
       deadline: reward.deadline,
       deadlineIso: new Date(Number(reward.deadline) * 1000).toISOString(),
@@ -539,127 +500,61 @@ async function main() {
     callDataSha256: sha256(callData),
     simulation,
     recipientOwnership,
-    estimatedFee,
+    commands: commands && { ...commands, submit: undefined },
   };
-  const preflightEvidence = await writeEvidence(
-    evidenceDir,
-    "eco-self-refund-preflight",
-    preflight,
-  );
-  process.stdout.write(`${json({ data: { ...preflight, preflightEvidence } })}\n`);
+  const preflightEvidence = await writeEvidence(evidenceDir, "eco-self-refund-preflight", preflight);
 
-  if (!args.submit) return;
-  if (terminalStatus || recipientOwnership.match === "sca") {
-    process.exitCode = 2;
-    return;
-  }
-  const confirmedIntent = required(args, "confirm-intent");
-  if (confirmedIntent.toLowerCase() !== expectedIntent.toLowerCase()) {
-    throw new Error(
-      "--confirm-intent must exactly match --intent-hash after the user approves the preflight.",
-    );
-  }
-
-  if (!circleContext) {
-    throw new Error("Circle wallet ownership and fee preflight was not completed.");
-  }
-  const { env, proxyUrl, client, wallet } = circleContext;
-  const idempotencyKey = freshIdempotencyKey(args["idempotency-key"]);
-  const submissionIntentEvidence = await writeEvidence(
-    evidenceDir,
-    "eco-self-refund-submission-intent",
-    {
+  let submissionEvidence;
+  if (confirming && eligible) {
+    // Save the key before printing the submit command, so a retry reuses it.
+    submissionEvidence = await writeEvidence(evidenceDir, "eco-self-refund-submission-intent", {
       operation: "eco-self-refund",
       circleChain: chain,
       intentHash: expectedIntent,
-      sca: wallet.address,
+      sca,
       portal,
+      fixedRecipient: reward.creator,
       idempotencyKey,
       callDataSha256: sha256(callData),
-    },
-  );
-  const submission = await runtime.submitAgentContractExecutionChallenge(
-    client,
-    env.userToken,
-    wallet,
-    { contractAddress: portal, callData, idempotencyKey },
-  );
-  const transaction = await runtime.runTransactionChallenge(
-    proxyUrl,
-    client,
-    env,
-    submission.challengeId,
-    submission.idempotencyKey,
-    ["--output", "json"],
-  );
-  if (!transaction) {
-    throw new Error(
-      `Circle submission became ambiguous. Reconcile intent ${expectedIntent} and idempotency key ${submission.idempotencyKey} before retrying.`,
-    );
-  }
-
-  const postStatusRaw = await rpc(refundRpcUrl, "eth_call", [
-    { to: portal, data: statusCall },
-    "latest",
-  ]);
-  const postStatus = Number(
-    decodeFunctionResult({
-      abi: portalAbi,
-      functionName: "getRewardStatus",
-      data: postStatusRaw,
-    }),
-  );
-  const postTokenBalances = [];
-  for (const tokenReward of reward.tokens) {
-    const readBalance = async (account) => {
-      const raw = await rpc(refundRpcUrl, "eth_call", [
-        {
-          to: tokenReward.token,
-          data: encodeFunctionData({
-            abi: erc20Abi,
-            functionName: "balanceOf",
-            args: [account],
-          }),
-        },
-        "latest",
-      ]);
-      return BigInt(
-        decodeFunctionResult({
-          abi: erc20Abi,
-          functionName: "balanceOf",
-          data: raw,
-        }),
-      );
-    };
-    postTokenBalances.push({
-      token: tokenReward.token,
-      vaultBalanceAtomic: await readBalance(vault),
-      recipientBalanceAtomic: await readBalance(reward.creator),
+      submit: commands.submit,
     });
   }
 
-  const result = {
-    operation: "eco-self-refund",
-    intentHash: expectedIntent,
-    fixedRecipient: reward.creator,
-    estimatedFee,
-    submissionIntentEvidence,
-    transaction,
-    postState: {
-      rewardStatus: { value: postStatus, name: statusNames[postStatus] },
-      tokenBalances: postTokenBalances,
-      nativeVaultBalance: BigInt(
-        await rpc(refundRpcUrl, "eth_getBalance", [vault, "latest"]),
-      ),
-    },
-  };
-  const resultEvidence = await writeEvidence(
-    evidenceDir,
-    "eco-self-refund-result",
-    result,
-  );
-  process.stdout.write(`${json({ data: { ...result, resultEvidence } })}\n`);
-  if (isFailedTransaction(transaction.state)) process.exitCode = 1;
+  process.stdout.write(`${json({ data: { ...preflight, preflightEvidence, submissionEvidence } })}\n`);
+
+  if (!eligible) {
+    process.stdout.write(`\nNot eligible for a refund: ${preflight.refusedReason} Nothing to submit.\n`);
+    process.exitCode = notEligibleExitCode(confirming);
+    return;
+  }
+
+  const summary = `Fixed refund recipient ${reward.creator} is the verified backing EOA of ${sca}. Nothing has been submitted.`;
+  if (!confirming) {
+    process.stdout.write(`
+${summary}
+
+1. Tuple check: Circle must read the same reward tuple (expect ${commands.parserCheckExpect}):
+${commands.parserCheck}
+
+2. Estimate the network fee:
+${commands.estimate}
+
+Show the preflight and the fee and get explicit approval for intent ${expectedIntent}.
+Then re-run this script with --confirm-intent ${quote(expectedIntent)} --evidence-dir '${evidenceDir ?? "<EVIDENCE_DIR>"}' for the single submit command.
+`);
+    return;
+  }
+
+  process.stdout.write(`
+${summary}
+Idempotency key saved to ${submissionEvidence}. If you re-run the confirm step, use the same --evidence-dir and the script reuses this key.
+
+3. Submit once:
+${commands.submit}
+
+4. Verify (reward status ends in 3 = Refunded, vault drained, recipient up):
+${commands.verify.join("\n")}
+`);
 }
 
 main().catch((error) => {

@@ -1,7 +1,17 @@
+// Shared helpers for the recovery scripts. They need Node.js 20.18.2+ and the
+// public @circle-fin/cli, logged in with `circle wallet login`; no Circle CLI
+// source checkout.
+
+import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { existsSync, readFileSync } from "node:fs";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { homedir, platform } from "node:os";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 export function parseArgs(argv, { booleanFlags = [] } = {}) {
   const booleans = new Set(booleanFlags);
@@ -76,6 +86,20 @@ export function requireChainId(value, label) {
   return BigInt(value);
 }
 
+export function requireUint(value, label) {
+  if (!/^(0|[1-9][0-9]*)$/.test(String(value))) {
+    throw new Error(`${label} must be a non-negative whole number.`);
+  }
+  return String(value);
+}
+
+export function requireHexBytes(value, label) {
+  if (!/^0x(?:[0-9a-fA-F]{2})*$/.test(value)) {
+    throw new Error(`${label} must be 0x-prefixed hex bytes.`);
+  }
+  return value;
+}
+
 export function requireSafePath(value, label) {
   if (SHELL_UNSAFE.test(value)) {
     throw new Error(`${label} must be a path without whitespace, quotes, or shell metacharacters.`);
@@ -114,16 +138,6 @@ export async function rpc(rpcUrl, method, params) {
 export function rpcOrigin(rpcUrl) {
   const parsed = new URL(rpcUrl);
   return `${parsed.protocol}//${parsed.host}`;
-}
-
-export function requireApprovedProxyOverride(proxyUrl, args) {
-  if (!process.env.CIRCLE_PROXY_URL) return;
-  const origin = rpcOrigin(proxyUrl);
-  if (args["allow-proxy-origin"] !== origin) {
-    throw new Error(
-      `CIRCLE_PROXY_URL overrides Circle's default proxy with ${origin}. Inspect it and re-run with --allow-proxy-origin ${origin} only if the user explicitly trusts that origin.`,
-    );
-  }
 }
 
 export function sanitize(value) {
@@ -176,64 +190,38 @@ export async function writeEvidence(directory, label, value) {
   return outputPath;
 }
 
-export async function loadCircleRuntime(circleCliRepo) {
-  const root = resolve(circleCliRepo);
-  const moduleUrl = (relativePath) =>
-    pathToFileURL(join(root, relativePath)).href;
-
-  const [httpClient, config, session, helpers, chainMap, viem, viemAccounts] =
-    await Promise.all([
-      import(moduleUrl("apps/cli/src/circle-http-client.ts")),
-      import(moduleUrl("apps/cli/src/config.ts")),
-      import(moduleUrl("apps/cli/src/session.ts")),
-      import(moduleUrl("apps/cli/src/commands/wallet/helpers.ts")),
-      import(moduleUrl("apps/cli/src/chain-map.ts")),
-      import(moduleUrl("apps/cli/node_modules/viem/_esm/index.js")),
-      import(moduleUrl("apps/cli/node_modules/viem/_esm/accounts/index.js")),
-    ]);
-
-  return {
-    root,
-    CircleHttpClient: httpClient.CircleHttpClient,
-    getProxyUrl: config.getProxyUrl,
-    getEvmChainId: chainMap.getEvmChainId,
-    loadAgentEnv: session.loadAgentEnv,
-    ...helpers,
-    viem,
-    viemAccounts,
-  };
-}
-
-export function requireCircleChainId(runtime, chain, chainId) {
-  const configuredChainId = BigInt(runtime.getEvmChainId(chain));
-  if (configuredChainId !== chainId) {
+// The idempotency key already saved for this intent's refund in the evidence
+// directory, so a re-run of the confirm step prints the same single submit
+// instead of a new one. Refuses when the directory holds conflicting keys.
+export async function savedIdempotencyKey(directory, intentHash, label = "eco-self-refund-submission-intent") {
+  if (!directory) return undefined;
+  const target = isAbsolute(directory) ? directory : resolve(directory);
+  if (!existsSync(target)) return undefined;
+  const keys = new Set();
+  for (const name of (await readdir(target)).filter((file) => file.endsWith(`-${label}.json`))) {
+    let saved;
+    try {
+      saved = JSON.parse(await readFile(join(target, name), "utf8"));
+    } catch {
+      throw new Error(`Could not read ${name} in the evidence directory; fix or move it before confirming.`);
+    }
+    if (!saved || typeof saved !== "object") {
+      throw new Error(`Could not read ${name} in the evidence directory; fix or move it before confirming.`);
+    }
+    if (String(saved.intentHash).toLowerCase() === intentHash.toLowerCase() && saved.idempotencyKey) {
+      const key = String(saved.idempotencyKey);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key)) {
+        throw new Error(`${name} in the evidence directory has an invalid saved idempotency key; fix or move it before confirming.`);
+      }
+      keys.add(key.toLowerCase());
+    }
+  }
+  if (keys.size > 1) {
     throw new Error(
-      `Circle chain ${chain} uses EVM chain ID ${configuredChainId}, not ${chainId}.`,
+      "The evidence directory has more than one saved idempotency key for this intent. Check which submit ran (circle wallet status and the explorer), move the submission-intent file for the submit that did not run out of --evidence-dir, then re-run.",
     );
   }
-}
-
-export async function resolveAgentWallet(runtime, chain, sca, args = {}) {
-  const env = await runtime.loadAgentEnv(chain);
-  if (!env) {
-    throw new Error(
-      `No active Circle agent session for ${chain}. Use the use-agent-wallet skill once, then retry.`,
-    );
-  }
-  const proxyUrl = runtime.getProxyUrl("agent", chain);
-  requireApprovedProxyOverride(proxyUrl, args);
-  const client = new runtime.CircleHttpClient(proxyUrl);
-  const wallets = await client.listWallets(env.userToken, {
-    blockchain: chain,
-    address: sca,
-  });
-  const wallet = wallets.find(
-    (candidate) => candidate.address.toLowerCase() === sca.toLowerCase(),
-  );
-  if (!wallet) {
-    throw new Error(`Circle agent wallet ${sca} was not found on ${chain}.`);
-  }
-  return { env, proxyUrl, client, wallet };
+  return [...keys][0];
 }
 
 export function freshIdempotencyKey(value) {
@@ -246,6 +234,175 @@ export function freshIdempotencyKey(value) {
   return randomUUID();
 }
 
-export function isFailedTransaction(state) {
-  return ["FAILED", "CANCELLED", "DENIED"].includes(String(state));
+// --- Circle CLI chains, session, and API --------------------------------------
+
+// Circle chain code -> [EVM chain ID, testnet]
+export const CHAINS = {
+  ETH: [1, false], MATIC: [137, false], ARB: [42161, false], AVAX: [43114, false],
+  OP: [10, false], BASE: [8453, false], UNI: [130, false], MONAD: [143, false],
+  ARC: [5042, false], "ETH-SEPOLIA": [11155111, true], "MATIC-AMOY": [80002, true],
+  "ARB-SEPOLIA": [421614, true], "AVAX-FUJI": [43113, true], "OP-SEPOLIA": [11155420, true],
+  "BASE-SEPOLIA": [84532, true], "UNI-SEPOLIA": [1301, true], "ARC-TESTNET": [5042002, true],
+};
+
+export const PROXY = "https://agentic-wallet.circle.com";
+
+// Production only. Refuse rather than ignore an override: the printed
+// `circle wallet execute` commands honor CIRCLE_PROXY_URL too, and would send
+// the session token to that origin.
+export function refuseProxyOverride() {
+  if (process.env.CIRCLE_PROXY_URL !== undefined) {
+    throw new Error(`CIRCLE_PROXY_URL is set. This script only talks to ${PROXY}. Unset it, run circle wallet login again, then re-run.`);
+  }
+}
+
+async function keychainLoad(account) {
+  const command = {
+    darwin: ["/usr/bin/security", ["find-generic-password", "-s", "circle-cli", "-a", account, "-w"]],
+    linux: ["/usr/bin/secret-tool", ["lookup", "app", "circle-cli", "account", account]],
+  }[platform()];
+  if (!command) return null;
+  try {
+    return (await execFileAsync(command[0], command[1], { timeout: 5_000 })).stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// The session saved by `circle wallet login`. Never print or save it.
+export async function loadSession(testnet) {
+  const home = process.env.CIRCLE_CLI_HOME ?? join(homedir(), ".circle-cli");
+  const file = join(home, "profiles", "agent", "session.json");
+  const slotName = testnet ? "testnet" : "mainnet";
+  const slot = existsSync(file) ? JSON.parse(readFileSync(file, "utf8"))[slotName] : undefined;
+  if (!slot) return null;
+  const secrets = slot.userToken
+    ? slot
+    : JSON.parse((await keychainLoad(`agent-session-${slotName}`)) ?? "null");
+  const session = { ...slot, ...secrets };
+  const complete = ["userToken", "encryptionKey", "encryptedUserSecret", "storageKey", "deviceId"]
+    .every((field) => session[field]);
+  return complete && Date.now() < session.expiresAt ? session : null;
+}
+
+export function circleApi(baseUrl, userToken) {
+  return async (method, path, { body, headers = {}, auth = true } = {}) => {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(auth ? { "X-User-Token": userToken } : {}),
+        ...headers,
+      },
+      body,
+      signal: AbortSignal.timeout(30_000),
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Circle ${method} ${path.split("?")[0]} failed (${response.status}): ${text.slice(0, 300)}`);
+    }
+    return text ? JSON.parse(text) : {};
+  };
+}
+
+// The published @circle-fin/cli bundles viem into its build and does not ship
+// it as a package, so the skill installs viem into its own directory from the
+// committed package-lock.json, where `import("viem")` finds it.
+
+export async function loadViem() {
+  try {
+    return await import("viem");
+  } catch {
+    const skillDir = dirname(dirname(fileURLToPath(import.meta.url)));
+    const target = /^[^'\n]+$/.test(skillDir) ? `'${skillDir}'` : "'<SKILL_DIR>'";
+    throw new Error(
+      `viem not found. Install the pinned dependencies into the skill directory, then re-run: npm ci --prefix ${target} --ignore-scripts`,
+    );
+  }
+}
+
+// Require the installed `circle` to be at least `minimum` (for example 1.2.3).
+export async function requireCliVersion(minimum) {
+  let stdout = "";
+  try {
+    ({ stdout } = await execFileAsync("circle", ["--version"], {
+      timeout: 15_000,
+      shell: platform() === "win32",
+    }));
+  } catch {
+    // reported below
+  }
+  const found = /(\d+)\.(\d+)\.(\d+)/.exec(stdout);
+  if (!found) {
+    throw new Error(`Circle CLI not found. Install @circle-fin/cli ${minimum} or newer: npm install -g @circle-fin/cli@latest`);
+  }
+  const have = found.slice(1).map(Number);
+  const want = minimum.split(".").map(Number);
+  const index = have.findIndex((part, i) => part !== want[i]);
+  if (index !== -1 && have[index] < want[index]) {
+    throw new Error(`Circle CLI ${found[0]} is older than ${minimum}. Update it: npm install -g @circle-fin/cli@latest`);
+  }
+  return found[0];
+}
+
+// --- Refund eligibility (pure; the refund script fetches the inputs) --------
+
+export const REWARD_STATUS_NAMES = ["Initial", "Funded", "Withdrawn", "Refunded"];
+
+const sameAddress = (a, b) => typeof a === "string" && typeof b === "string" && a.toLowerCase() === b.toLowerCase();
+
+// Withdrawn and Refunded are terminal: there is nothing left to refund.
+export function rewardStatus(status) {
+  if (!Number.isInteger(status) || status < 0 || status > 3) throw new Error(`Unknown Eco reward status ${status}.`);
+  return { terminalStatus: status === 2 || status === 3, statusName: REWARD_STATUS_NAMES[status] };
+}
+
+export function requireDeadlinePassed({ terminalStatus, refundTimestamp, deadline }) {
+  if (!terminalStatus && refundTimestamp < deadline) {
+    throw new Error(`Refund deadline has not passed: block=${refundTimestamp}, deadline=${deadline}.`);
+  }
+}
+
+// The vault's native balance always counts as recoverable, whatever the
+// nominal reward.nativeAmount.
+export function requireRecoverable({ terminalStatus, vault, nativeVaultBalance, tokenVaultBalances }) {
+  const recoverable = nativeVaultBalance > 0n || tokenVaultBalances.some((balance) => balance > 0n);
+  if (!terminalStatus && !recoverable) {
+    throw new Error(`The computed vault ${vault} has no recoverable reward balance on the selected refund chain.`);
+  }
+}
+
+// A legacy intent's fixed refund recipient must be the SCA's Circle-verified backing EOA.
+export function requireBackingEoaRecipient({ creator, sca, backingEoa }) {
+  if (!backingEoa || !sameAddress(backingEoa, creator)) {
+    throw new Error(
+      `Refusing to spend gas: fixed refund recipient ${creator} is neither Circle wallet SCA ${sca} nor its verified backing EOA${backingEoa ? ` ${backingEoa}` : " (not returned by Circle)"}.`,
+    );
+  }
+  return { checked: true, match: "backing-eoa", backingEoa };
+}
+
+export function isCreatorSca({ creator, sca }) {
+  return sameAddress(creator, sca);
+}
+
+// Only a non-terminal legacy intent whose recipient is the verified backing EOA
+// gets a refund command; everything else prints nothing to submit.
+export function refundDecision({ terminalStatus, statusName, creatorIsSca, creator, recipientOwnership }) {
+  const eligible = !terminalStatus && recipientOwnership?.match === "backing-eoa";
+  return {
+    eligible,
+    action: terminalStatus ? "stop-no-broadcast" : creatorIsSca ? "stop-current-direct-to-sca" : "eligible-after-approval",
+    refusedReason: terminalStatus
+      ? `Intent reward status is already ${statusName}.`
+      : creatorIsSca
+        ? `Fixed refund recipient ${creator} is the selected Circle wallet SCA. This is the current direct-to-SCA flow; reconcile balances or escalate instead.`
+        : undefined,
+  };
+}
+
+// Exit code when nothing is printed to submit: 2 on a confirm run, so a
+// caller can tell "refused" from success.
+export function notEligibleExitCode(confirming) {
+  return confirming ? 2 : 0;
 }

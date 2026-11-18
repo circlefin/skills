@@ -4,7 +4,6 @@
 // `circle wallet execute` commands that submit it. Needs Node.js 20.18.2+ and
 // the public @circle-fin/cli, logged in with `circle wallet login`.
 
-import { execFile } from "node:child_process";
 import {
   constants,
   createHash,
@@ -14,22 +13,16 @@ import {
   randomUUID,
   webcrypto,
 } from "node:crypto";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { createRequire } from "node:module";
-import { homedir, platform } from "node:os";
-import { delimiter, dirname, join } from "node:path";
-import { promisify } from "node:util";
 
-const execFileAsync = promisify(execFile);
+import {
+  CHAINS,
+  PROXY,
+  circleApi,
+  loadSession,
+  loadViem,
+  refuseProxyOverride,
+} from "./_shared.mjs";
 
-// Circle chain code -> [EVM chain ID, testnet]
-const CHAINS = {
-  ETH: [1, false], MATIC: [137, false], ARB: [42161, false], AVAX: [43114, false],
-  OP: [10, false], BASE: [8453, false], UNI: [130, false], MONAD: [143, false],
-  ARC: [5042, false], "ETH-SEPOLIA": [11155111, true], "MATIC-AMOY": [80002, true],
-  "ARB-SEPOLIA": [421614, true], "AVAX-FUJI": [43113, true], "OP-SEPOLIA": [11155420, true],
-  "BASE-SEPOLIA": [84532, true], "UNI-SEPOLIA": [1301, true], "ARC-TESTNET": [5042002, true],
-};
 const TRANSFER_WITH_AUTHORIZATION =
   "transferWithAuthorization(address,address,uint256,uint256,uint256,bytes32,uint8,bytes32,bytes32)";
 const AUTHORIZATION_TYPES = {
@@ -71,58 +64,6 @@ function parseArgs(argv) {
   args.chain = args.chain.toUpperCase();
   if (!CHAINS[args.chain]) throw new Error(`Unsupported chain ${args.chain}.`);
   return args;
-}
-
-// --- Session saved by `circle wallet login` ----------------------------------
-
-async function keychainLoad(account) {
-  const command = {
-    darwin: ["/usr/bin/security", ["find-generic-password", "-s", "circle-cli", "-a", account, "-w"]],
-    linux: ["/usr/bin/secret-tool", ["lookup", "app", "circle-cli", "account", account]],
-  }[platform()];
-  if (!command) return null;
-  try {
-    return (await execFileAsync(command[0], command[1], { timeout: 5_000 })).stdout.trim() || null;
-  } catch {
-    return null;
-  }
-}
-
-async function loadSession(testnet) {
-  const home = process.env.CIRCLE_CLI_HOME ?? join(homedir(), ".circle-cli");
-  const file = join(home, "profiles", "agent", "session.json");
-  const slotName = testnet ? "testnet" : "mainnet";
-  const slot = existsSync(file) ? JSON.parse(readFileSync(file, "utf8"))[slotName] : undefined;
-  if (!slot) return null;
-  const secrets = slot.userToken
-    ? slot
-    : JSON.parse((await keychainLoad(`agent-session-${slotName}`)) ?? "null");
-  const session = { ...slot, ...secrets };
-  const complete = ["userToken", "encryptionKey", "encryptedUserSecret", "storageKey", "deviceId"]
-    .every((field) => session[field]);
-  return complete && Date.now() < session.expiresAt ? session : null;
-}
-
-// --- Circle API --------------------------------------------------------------
-
-function circleApi(baseUrl, userToken) {
-  return async (method, path, { body, headers = {}, auth = true } = {}) => {
-    const response = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        ...(auth ? { "X-User-Token": userToken } : {}),
-        ...headers,
-      },
-      body,
-      signal: AbortSignal.timeout(30_000),
-    });
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(`Circle ${method} ${path.split("?")[0]} failed (${response.status}): ${text.slice(0, 300)}`);
-    }
-    return text ? JSON.parse(text) : {};
-  };
 }
 
 // --- Challenge approval (same scheme as the Circle CLI) ----------------------
@@ -216,49 +157,13 @@ async function approveChallenge(api, session, challengeId) {
     : approved;
 }
 
-// --- viem: local install, else the copy bundled with @circle-fin/cli ---------
-
-async function loadViem() {
-  try {
-    return await import("viem");
-  } catch {
-    // fall back to the CLI's copy
-  }
-  const roots = (process.env.PATH ?? "").split(delimiter).map((dir) => {
-    try {
-      return dirname(dirname(realpathSync(join(dir, "circle"))));
-    } catch {
-      return undefined;
-    }
-  });
-  try {
-    const { stdout } = await execFileAsync("npm", ["root", "-g"], { shell: platform() === "win32" });
-    roots.push(join(stdout.trim(), "@circle-fin", "cli"));
-  } catch {
-    // npm not available
-  }
-  for (const root of roots.filter(Boolean)) {
-    try {
-      return createRequire(join(root, "package.json"))("viem");
-    } catch {
-      // not a @circle-fin/cli install
-    }
-  }
-  throw new Error("viem not found. Install the Circle CLI: npm install -g @circle-fin/cli");
-}
-
 // --- Main ----------------------------------------------------------------------
-
-const PROXY = "https://agentic-wallet.circle.com";
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  // Production only. Refuse rather than ignore an override: the printed
-  // `circle wallet execute` commands honor CIRCLE_PROXY_URL too, and would send
-  // the session token and the signed authorization to that origin.
-  if (process.env.CIRCLE_PROXY_URL !== undefined) {
-    throw new Error(`CIRCLE_PROXY_URL is set. This script only talks to ${PROXY}. Unset it, run circle wallet login again, then re-run.`);
-  }
+  // The printed commands would also send the signed authorization to an
+  // overriding proxy, so refuse one.
+  refuseProxyOverride();
   const { chain, eoa, sca, usdc } = args;
   const [chainId, testnet] = CHAINS[chain];
   const viem = await loadViem();
